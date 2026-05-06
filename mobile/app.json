@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "InteCheck AI",
-    "slug": "intecheck-ai",
+    "slug": "safety-checklist-ai",
+    "owner": "anishravikiran0610",
     "version": "1.0.0",
     "scheme": "intecheck",
     "orientation": "portrait",
@@ -29,6 +30,12 @@
     },
     "plugins": [
       "expo-router"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b11b342f-399b-462c-9f32-453b93ca348f"
+      },
+      "router": {}
+    }
   }
 }
