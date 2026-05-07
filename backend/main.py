@@ -21,7 +21,7 @@ from models.checklist import GeneratedChecklist
 # ---------------------------------------------------------------------------
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     datefmt="%Y-%m-%dT%H:%M:%S",
 )
@@ -173,6 +173,10 @@ async def generate(
 
     # --- Parse annexes ---
     t0 = time.perf_counter()
+    # DEBUG: log first 3 blocks from first 2 annex pages so we can see the real format
+    for page in extracted["annex_blocks"][:2]:
+        for block in page["blocks"][:3]:
+            log.debug("ANNEX BLOCK page=%d: %r", page["page"], block[:120])
     annex_items = table_parser_svc.parse_annex_blocks(extracted["annex_blocks"])
     log.info("[5/6] Annex parser — %d items extracted (%.2fs)",
              len(annex_items), time.perf_counter() - t0)
