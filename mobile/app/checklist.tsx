@@ -3,12 +3,12 @@ import { router } from 'expo-router';
 import React from 'react';
 import {
   FlatList,
-  SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChecklistCard } from '../components/ChecklistCard';
 import { useChecklistStore } from '../store/useChecklistStore';
 

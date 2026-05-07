@@ -4,12 +4,12 @@ import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { generateChecklist } from '../lib/api';
 import { useChecklistStore } from '../store/useChecklistStore';
 

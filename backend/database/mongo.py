@@ -9,7 +9,12 @@ _db = None
 def _get_db():
     global _mongo_client, _db
     if _mongo_client is None:
-        _mongo_client = AsyncIOMotorClient(os.environ.get("MONGODB_URI", ""))
+        _mongo_client = AsyncIOMotorClient(
+            os.environ.get("MONGODB_URI", ""),
+            tls=True,
+            tlsAllowInvalidCertificates=False,
+            serverSelectionTimeoutMS=30000,
+        )
         _db = _mongo_client[os.environ.get("MONGODB_DB", "intecheck")]
     return _db
 
