@@ -104,22 +104,25 @@ def health():
         500: {"model": ErrorResponse, "description": "Internal server error"},
     },
 )
-async def generate(file: UploadFile = File(..., description="DROPS procedure PDF")):
+async def generate(
+    file: UploadFile = File(..., description="DROPS procedure PDF"),
+    force: bool = Query(default=False, description="Bypass document hash cache and force regeneration"),
+):
     """
     Full generation pipeline:
 
     1. Validate PDF file type
     2. Extract prose text (pages 22–35) and annex blocks (pages 40–62) via PyMuPDF
     3. Detect DROPS keywords in sample text — reject non-DROPS documents
-    4. Check MongoDB for existing checklist with same document hash (cache hit)
+    4. Check MongoDB for existing checklist with same document hash (cache hit) — skipped if `force=true`
     5. Parse annex blocks directly into ChecklistItems (no LLM)
     6. Generate checklist items from prose via Groq LLM (llama-3.3-70b-versatile)
     7. Persist combined checklist to MongoDB
     8. Return GeneratedChecklist JSON
     """
     t_start = time.perf_counter()
-    log.info("POST /api/checklists/generate — file=%s size=%s bytes",
-             file.filename, file.size)
+    log.info("POST /api/checklists/generate — file=%s size=%s bytes force=%s",
+             file.filename, file.size, force)
 
     if not file.filename.lower().endswith(".pdf"):
         log.warning("Rejected non-PDF upload: %s", file.filename)
@@ -157,13 +160,16 @@ async def generate(file: UploadFile = File(..., description="DROPS procedure PDF
 
     # --- Cache check ---
     t0 = time.perf_counter()
-    existing = await db.get_by_hash(extracted["document_hash"])
-    if existing:
-        log.info("[4/6] Cache HIT — returning existing checklist id=%s (%.2fs)",
-                 existing.id, time.perf_counter() - t0)
-        return existing
-    log.info("[4/6] Cache MISS — hash=%s (%.2fs)",
-             extracted["document_hash"], time.perf_counter() - t0)
+    if force:
+        log.info("[4/6] Cache BYPASS — force=true, skipping hash lookup")
+    else:
+        existing = await db.get_by_hash(extracted["document_hash"])
+        if existing:
+            log.info("[4/6] Cache HIT — returning existing checklist id=%s (%.2fs)",
+                     existing.id, time.perf_counter() - t0)
+            return existing
+        log.info("[4/6] Cache MISS — hash=%s (%.2fs)",
+                 extracted["document_hash"], time.perf_counter() - t0)
 
     # --- Parse annexes ---
     t0 = time.perf_counter()
