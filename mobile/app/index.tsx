@@ -51,7 +51,7 @@ export default function UploadScreen() {
           <View style={styles.iconCircle}>
             <Ionicons name="shield-checkmark" size={40} color="#3B82F6" />
           </View>
-          <Text style={styles.title}>InteCheck AI</Text>
+          <Text style={styles.title}>Safety Checklist AI</Text>
           <Text style={styles.subtitle}>
             DROPS Inspection Checklist Generator
           </Text>

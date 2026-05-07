@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "InteCheck AI",
+    "name": "Safety Checklist AI",
     "slug": "safety-checklist-ai",
     "owner": "anishravikiran0610",
     "version": "1.0.0",
@@ -29,13 +29,20 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-asset"
     ],
     "extra": {
       "eas": {
         "projectId": "b11b342f-399b-462c-9f32-453b93ca348f"
       },
       "router": {}
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/b11b342f-399b-462c-9f32-453b93ca348f"
     }
   }
 }
