@@ -173,10 +173,10 @@ async def generate(
 
     # --- Parse annexes ---
     t0 = time.perf_counter()
-    # DEBUG: log first 3 blocks from first 2 annex pages so we can see the real format
-    for page in extracted["annex_blocks"][:2]:
-        for block in page["blocks"][:3]:
-            log.debug("ANNEX BLOCK page=%d: %r", page["page"], block[:120])
+    # DEBUG: log first 5 blocks from ALL annex pages so we can see the real format
+    for page in extracted["annex_blocks"]:
+        for block in page["blocks"][:5]:
+            log.debug("ANNEX BLOCK page=%d: %r", page["page"], block[:200])
     annex_items = table_parser_svc.parse_annex_blocks(extracted["annex_blocks"])
     log.info("[5/6] Annex parser — %d items extracted (%.2fs)",
              len(annex_items), time.perf_counter() - t0)
