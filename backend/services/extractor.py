@@ -6,8 +6,13 @@ def _is_annex_page(page) -> bool:
     blocks = page.get_text("blocks")
     if not blocks:
         return False
-    first_text = blocks[0][4].strip()
-    return first_text.upper().startswith("ANNEX")
+    # Check first 4 blocks — real PDFs often have page numbers or headers
+    # before the "Annex X" heading
+    for block in blocks[:4]:
+        text = block[4].strip().upper()
+        if text.startswith("ANNEX"):
+            return True
+    return False
 
 
 def _compute_hash(file_path: str) -> str:

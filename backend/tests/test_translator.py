@@ -22,11 +22,12 @@ def clear_cache():
     _clear_cache()
 
 
-def _make_mock_client(translated_text="TRANSLATED"):
+def _make_mock_client(translated_text="TRANSLATED", n_items=1):
     mock_result = MagicMock()
     mock_result.text = translated_text
     mock_client = MagicMock()
-    mock_client.translate_text.return_value = [mock_result] * 4
+    # Batched: all fields from all items in one DeepL call → 4 fields × n_items
+    mock_client.translate_text.return_value = [mock_result] * (4 * n_items)
     return mock_client
 
 

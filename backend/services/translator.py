@@ -39,17 +39,24 @@ def translate_checklist_items(
         return _cache[cache_key], True
 
     client = _get_client()
-    translated_items = []
+    n_fields = len(_FIELDS_TO_TRANSLATE)
 
-    for item in items:
-        fields = [item.get(f, "") for f in _FIELDS_TO_TRANSLATE]
-        results = client.translate_text(fields, target_lang=target_language)
+    # Batch ALL fields from ALL items into a single DeepL request
+    # instead of N requests (one per item). Reduces ~5s → ~1s for 8 items.
+    all_texts = [
+        item.get(f, "") for item in items for f in _FIELDS_TO_TRANSLATE
+    ]
+    all_results = client.translate_text(all_texts, target_lang=target_language)
+
+    translated_items = []
+    for i, item in enumerate(items):
+        offset = i * n_fields
         translated_items.append({
             **item,
-            "action": results[0].text,
-            "acceptance_criteria": results[1].text,
-            "failure_criteria": results[2].text,
-            "source_section": results[3].text,
+            "action": all_results[offset].text,
+            "acceptance_criteria": all_results[offset + 1].text,
+            "failure_criteria": all_results[offset + 2].text,
+            "source_section": all_results[offset + 3].text,
         })
 
     _cache[cache_key] = translated_items
