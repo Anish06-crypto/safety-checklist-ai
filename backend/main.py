@@ -4,9 +4,11 @@ import logging
 import os
 import tempfile
 import time
-from typing import Any
+from pathlib import Path
+from typing import Any, List
 
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+import fitz
+from fastapi import FastAPI, File, HTTPException, Query, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -150,9 +152,17 @@ async def generate(
         }
     else:
         log.info("[2/7] Extraction cache MISS — hash=%s — calling ADE", doc_hash)
-        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-            tmp.write(contents)
-            tmp_path = tmp.name
+        
+        # Save PDF to persistent uploads directory for on-the-fly cropping
+        uploads_dir = Path("uploads")
+        uploads_dir.mkdir(exist_ok=True)
+        pdf_path = uploads_dir / f"{doc_hash}.pdf"
+        
+        if not pdf_path.exists():
+            with open(pdf_path, "wb") as f:
+                f.write(contents)
+        
+        tmp_path = str(pdf_path)
 
         try:
             t_ade = time.perf_counter()
@@ -264,10 +274,51 @@ async def get_chunks(document_hash: str):
     return data["chunks"]
 @app.get("/api/extractions/{doc_hash}/chunks/{chunk_id}/image", tags=["Grounding"])
 async def get_chunk_image(doc_hash: str, chunk_id: str):
-    """Serve the grounding image crop for a specific chunk"""
-    # LandingAI ADE saves them as {chunk_id}.png in the grounding_save_dir
-    image_path = Path("grounding_outputs") / doc_hash / f"{chunk_id}.png"
-    if not image_path.exists():
-        log.warning("Grounding image not found: %s", image_path)
-        raise HTTPException(status_code=404, detail="Grounding image not found")
-    return FileResponse(image_path)
+    """Serve a cropped image of the chunk from the source PDF using PyMuPDF"""
+    # 1. Get grounding data
+    extraction = await db.get_extraction(doc_hash)
+    if not extraction:
+        raise HTTPException(status_code=404, detail="Extraction not found")
+    
+    # 2. Find the chunk metadata
+    chunk = next((c for c in extraction["chunks"] if c["id"] == chunk_id), None)
+    if not chunk or "grounding" not in chunk:
+        raise HTTPException(status_code=404, detail="Grounding metadata not found for this chunk")
+    
+    # 3. Open source PDF
+    pdf_path = Path("uploads") / f"{doc_hash}.pdf"
+    if not pdf_path.exists():
+        log.warning("Source PDF missing for crop: %s", pdf_path)
+        raise HTTPException(status_code=404, detail="Source PDF missing. Please re-upload.")
+    
+    # 4. Perform crop
+    try:
+        doc = fitz.open(str(pdf_path))
+        page_idx = chunk["grounding"]["page"] - 1
+        page = doc[page_idx]
+        box = chunk["grounding"]["box"]
+        
+        w, h = page.rect.width, page.rect.height
+        if isinstance(box, dict):
+            rect = fitz.Rect(box["left"] * w, box["top"] * h, box["right"] * w, box["bottom"] * h)
+        else:
+            rect = fitz.Rect(box[0] * w / 1000, box[1] * h / 1000, box[2] * w / 1000, box[3] * h / 1000)
+
+        # Bake the blue highlight box into the page BEFORE rendering PNG
+        page.draw_rect(rect, color=(0.23, 0.51, 0.96), width=2, overlay=True)
+
+        # Contextual crop
+        crop_rect = fitz.Rect(rect.x0 - 40, rect.y0 - 40, rect.x1 + 40, rect.y1 + 40)
+        crop_rect.x0 = max(0, crop_rect.x0)
+        crop_rect.y0 = max(0, crop_rect.y0)
+        crop_rect.x1 = min(w, crop_rect.x1)
+        crop_rect.y1 = min(h, crop_rect.y1)
+        
+        pix = page.get_pixmap(clip=crop_rect, matrix=fitz.Matrix(2, 2))
+        img_bytes = pix.tobytes("png")
+        doc.close()
+        
+        return Response(content=img_bytes, media_type="image/png")
+    except Exception as e:
+        log.error("Failed to crop PDF for chunk %s: %s", chunk_id, e)
+        raise HTTPException(status_code=500, detail="Failed to process image evidence")

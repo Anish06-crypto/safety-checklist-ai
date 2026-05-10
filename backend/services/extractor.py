@@ -38,17 +38,12 @@ def extract_from_pdf(file_path: str, filename: str = "document.pdf") -> dict:
             "document_hash": doc_hash,
         }
 
-    # Setup grounding output directory
-    grounding_dir = Path("grounding_outputs") / doc_hash
-    grounding_dir.mkdir(parents=True, exist_ok=True)
-
     client = _get_client()
 
     # ADE parse — preserves tables, images, charts as structured markdown
     response = client.parse(
         document=Path(file_path),
         model="dpt-2-latest",
-        grounding_save_dir=str(grounding_dir),
     )
 
     markdown = response.markdown
