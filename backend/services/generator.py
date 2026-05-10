@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from groq import Groq
 from models.checklist import ChecklistItem, DROPSSeverity, GeneratedChecklist
@@ -174,7 +174,7 @@ def generate_from_prose(
     return GeneratedChecklist(
         id=str(uuid.uuid4()),
         document_name=document_name,
-        generated_at=datetime.utcnow().isoformat(),
+        generated_at=datetime.now(UTC).isoformat(),
         source_document_hash=document_hash,
         status="current",
         items=all_items,

@@ -23,6 +23,9 @@ MINIMAL_PDF = (
 def _make_mock_parse_response(markdown: str):
     mock_response = MagicMock()
     mock_response.markdown = markdown
+    mock_chunk = MagicMock()
+    mock_chunk.model_dump.return_value = {"id": "chunk-1", "grounding": {"page": 1, "box": [0, 0, 10, 10]}}
+    mock_response.chunks = [mock_chunk]
     return mock_response
 
 
@@ -43,7 +46,7 @@ def test_returns_expected_keys(tmp_path, monkeypatch):
         result = extract_from_pdf(_write_temp_pdf(tmp_path))
     assert "sample_text" in result
     assert "prose_text" in result
-    assert "annex_blocks" in result
+    assert "chunks" in result
     assert "document_hash" in result
 
 
@@ -73,7 +76,7 @@ def test_sample_text_is_first_500_chars(tmp_path, monkeypatch):
     assert result["sample_text"] == "A" * 500
 
 
-def test_annex_blocks_is_empty_list(tmp_path, monkeypatch):
+def test_chunks_is_list(tmp_path, monkeypatch):
     monkeypatch.setenv("USE_ADE", "true")
     import services.extractor as ext
     ext._client = None
@@ -82,7 +85,8 @@ def test_annex_blocks_is_empty_list(tmp_path, monkeypatch):
         mock_ade_class.return_value.parse.return_value = mock_response
         from services.extractor import extract_from_pdf
         result = extract_from_pdf(_write_temp_pdf(tmp_path))
-    assert result["annex_blocks"] == []
+    assert isinstance(result["chunks"], list)
+    assert len(result["chunks"]) > 0
 
 
 def test_document_hash_is_sha256_of_file(tmp_path, monkeypatch):
@@ -147,4 +151,4 @@ def test_pymupdf_fallback_when_use_ade_false(tmp_path, monkeypatch):
         result = extract_from_pdf(_write_temp_pdf(tmp_path, MINIMAL_PDF))
     mock_ade_class.assert_not_called()
     assert "prose_text" in result
-    assert result["annex_blocks"] == []
+    assert result["chunks"] == []
