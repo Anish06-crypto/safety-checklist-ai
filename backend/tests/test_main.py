@@ -63,6 +63,7 @@ def test_generate_rejects_non_drops_document(monkeypatch):
     )
     monkeypatch.setattr("main.db.get_extraction", AsyncMock(return_value=None))
     monkeypatch.setattr("main.db.save_extraction", AsyncMock())
+    monkeypatch.setattr("main.db.save_pdf", AsyncMock())
     monkeypatch.setattr(
         "services.detector.detect_document_type",
         lambda _: DETECT_NOT_DROPS,
@@ -85,6 +86,7 @@ def test_generate_returns_cached_checklist_on_hash_match(monkeypatch):
     monkeypatch.setattr("services.detector.detect_document_type", lambda _: DETECT_DROPS)
     monkeypatch.setattr("main.db.get_extraction", AsyncMock(return_value=None))
     monkeypatch.setattr("main.db.save_extraction", AsyncMock())
+    monkeypatch.setattr("main.db.save_pdf", AsyncMock())
     monkeypatch.setattr(
         "main.db.get_by_hash",
         AsyncMock(return_value=SAMPLE_CHECKLIST),
@@ -107,6 +109,7 @@ def test_generate_full_pipeline_saves_and_returns_checklist(monkeypatch):
     monkeypatch.setattr("services.detector.detect_document_type", lambda _: DETECT_DROPS)
     monkeypatch.setattr("main.db.get_extraction", AsyncMock(return_value=None))
     monkeypatch.setattr("main.db.save_extraction", AsyncMock())
+    monkeypatch.setattr("main.db.save_pdf", AsyncMock())
     monkeypatch.setattr("main.db.get_by_hash", AsyncMock(return_value=None))
     monkeypatch.setattr(
         "services.generator.generate_from_prose",
@@ -133,6 +136,7 @@ def test_generate_force_bypasses_cache(monkeypatch):
     monkeypatch.setattr("services.detector.detect_document_type", lambda _: DETECT_DROPS)
     monkeypatch.setattr("main.db.get_extraction", AsyncMock(return_value=None))
     monkeypatch.setattr("main.db.save_extraction", AsyncMock())
+    monkeypatch.setattr("main.db.save_pdf", AsyncMock())
     monkeypatch.setattr("main.db.get_by_hash", AsyncMock(return_value=SAMPLE_CHECKLIST))
     monkeypatch.setattr(
         "services.generator.generate_from_prose",
