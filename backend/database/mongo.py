@@ -6,7 +6,7 @@ _mongo_client = None
 _db = None
 
 
-def _get_db():
+async def _get_db():
     global _mongo_client, _db
     if _mongo_client is None:
         _mongo_client = AsyncIOMotorClient(
@@ -16,17 +16,19 @@ def _get_db():
             serverSelectionTimeoutMS=30000,
         )
         _db = _mongo_client[os.environ.get("MONGODB_DB", "intecheck")]
+        # Ensure index exists — must be awaited
+        await _db.raw_extractions.create_index("document_hash", unique=True)
     return _db
 
 
 async def save_checklist(checklist: GeneratedChecklist) -> str:
-    db = _get_db()
+    db = await _get_db()
     await db.checklists.insert_one(checklist.model_dump())
     return checklist.id
 
 
 async def get_checklist(checklist_id: str) -> GeneratedChecklist | None:
-    db = _get_db()
+    db = await _get_db()
     doc = await db.checklists.find_one({"id": checklist_id})
     if doc is None:
         return None
@@ -35,7 +37,7 @@ async def get_checklist(checklist_id: str) -> GeneratedChecklist | None:
 
 
 async def get_by_hash(document_hash: str) -> GeneratedChecklist | None:
-    db = _get_db()
+    db = await _get_db()
     doc = await db.checklists.find_one(
         {"source_document_hash": document_hash, "status": "current"}
     )
@@ -43,3 +45,18 @@ async def get_by_hash(document_hash: str) -> GeneratedChecklist | None:
         return None
     doc.pop("_id", None)
     return GeneratedChecklist(**doc)
+
+
+async def get_extraction(document_hash: str) -> str | None:
+    db = await _get_db()
+    doc = await db.raw_extractions.find_one({"document_hash": document_hash})
+    return doc["markdown"] if doc else None
+
+
+async def save_extraction(document_hash: str, markdown: str) -> None:
+    db = await _get_db()
+    await db.raw_extractions.update_one(
+        {"document_hash": document_hash},
+        {"$set": {"document_hash": document_hash, "markdown": markdown}},
+        upsert=True,
+    )

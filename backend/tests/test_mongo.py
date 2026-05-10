@@ -34,7 +34,7 @@ def _make_mock_db(find_one_result=None):
 
 async def test_save_checklist_returns_id(monkeypatch):
     mock_db = _make_mock_db()
-    monkeypatch.setattr("database.mongo._get_db", lambda: mock_db)
+    monkeypatch.setattr("database.mongo._get_db", AsyncMock(return_value=mock_db))
 
     from database.mongo import save_checklist
     result = await save_checklist(SAMPLE_CHECKLIST)
@@ -44,7 +44,7 @@ async def test_save_checklist_returns_id(monkeypatch):
 
 async def test_save_checklist_calls_insert_one(monkeypatch):
     mock_db = _make_mock_db()
-    monkeypatch.setattr("database.mongo._get_db", lambda: mock_db)
+    monkeypatch.setattr("database.mongo._get_db", AsyncMock(return_value=mock_db))
 
     from database.mongo import save_checklist
     await save_checklist(SAMPLE_CHECKLIST)
@@ -55,7 +55,7 @@ async def test_save_checklist_calls_insert_one(monkeypatch):
 async def test_get_checklist_returns_generated_checklist(monkeypatch):
     doc = {**SAMPLE_CHECKLIST.model_dump()}
     mock_db = _make_mock_db(find_one_result=doc)
-    monkeypatch.setattr("database.mongo._get_db", lambda: mock_db)
+    monkeypatch.setattr("database.mongo._get_db", AsyncMock(return_value=mock_db))
 
     from database.mongo import get_checklist
     result = await get_checklist("cl-abc123")
@@ -66,7 +66,7 @@ async def test_get_checklist_returns_generated_checklist(monkeypatch):
 
 async def test_get_checklist_returns_none_when_not_found(monkeypatch):
     mock_db = _make_mock_db(find_one_result=None)
-    monkeypatch.setattr("database.mongo._get_db", lambda: mock_db)
+    monkeypatch.setattr("database.mongo._get_db", AsyncMock(return_value=mock_db))
 
     from database.mongo import get_checklist
     result = await get_checklist("nonexistent")
@@ -77,7 +77,7 @@ async def test_get_checklist_returns_none_when_not_found(monkeypatch):
 async def test_get_by_hash_returns_checklist(monkeypatch):
     doc = {**SAMPLE_CHECKLIST.model_dump()}
     mock_db = _make_mock_db(find_one_result=doc)
-    monkeypatch.setattr("database.mongo._get_db", lambda: mock_db)
+    monkeypatch.setattr("database.mongo._get_db", AsyncMock(return_value=mock_db))
 
     from database.mongo import get_by_hash
     result = await get_by_hash("deadbeef")
@@ -88,7 +88,7 @@ async def test_get_by_hash_returns_checklist(monkeypatch):
 
 async def test_get_by_hash_returns_none_when_not_found(monkeypatch):
     mock_db = _make_mock_db(find_one_result=None)
-    monkeypatch.setattr("database.mongo._get_db", lambda: mock_db)
+    monkeypatch.setattr("database.mongo._get_db", AsyncMock(return_value=mock_db))
 
     from database.mongo import get_by_hash
     result = await get_by_hash("unknown")
@@ -99,7 +99,7 @@ async def test_get_by_hash_returns_none_when_not_found(monkeypatch):
 async def test_get_checklist_strips_mongo_id(monkeypatch):
     doc = {**SAMPLE_CHECKLIST.model_dump(), "_id": "some-mongo-object-id"}
     mock_db = _make_mock_db(find_one_result=doc)
-    monkeypatch.setattr("database.mongo._get_db", lambda: mock_db)
+    monkeypatch.setattr("database.mongo._get_db", AsyncMock(return_value=mock_db))
 
     from database.mongo import get_checklist
     result = await get_checklist("cl-abc123")
