@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React from 'react';
+import React, { useState } from 'react';
 import {
   FlatList,
   StyleSheet,
@@ -21,7 +21,7 @@ export default function ChecklistScreen() {
   const displayItems = useChecklistStore((s) => s.displayItems);
   const chunks = useChecklistStore((s) => s.chunks);
 
-  const [selectedChunk, setSelectedChunk] = React.useState<Chunk | null>(null);
+  const [selectedChunk, setSelectedChunk] = useState<Chunk | null>(null);
 
   const handleViewEvidence = (chunkId?: string) => {
     if (!chunkId) return;

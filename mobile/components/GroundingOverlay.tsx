@@ -12,9 +12,16 @@ export function GroundingOverlay({
   visible: boolean;
   onClose: () => void;
 }) {
-  if (!chunk) return null;
+  if (!chunk || !chunk.grounding || !chunk.grounding.box) {
+    return null;
+  }
 
-  const [xmin, ymin, xmax, ymax] = chunk.grounding.box;
+  const box = chunk.grounding.box;
+  if (!Array.isArray(box) || box.length !== 4) {
+    return null;
+  }
+
+  const [xmin, ymin, xmax, ymax] = box;
 
   // Visual constants for the mini-map
   const MAP_WIDTH = 260;
@@ -44,7 +51,7 @@ export function GroundingOverlay({
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>CHUNK ID</Text>
               <Text style={styles.infoValue} numberOfLines={1}>
-                {chunk.id.split('-')[0]}...
+                {typeof chunk.id === 'string' ? `${chunk.id.split('-')[0]}...` : 'N/A'}
               </Text>
             </View>
           </View>

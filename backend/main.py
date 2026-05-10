@@ -136,7 +136,8 @@ async def generate(
     log.info("[1/7] Document hash computed — hash=%s bytes=%d", doc_hash, len(contents))
 
     t0 = time.perf_counter()
-    extraction_cache = await db.get_extraction(doc_hash)
+    extraction_cache = None if force else await db.get_extraction(doc_hash)
+    
     if extraction_cache:
         log.info("[2/7] Extraction cache HIT — hash=%s (%.2fs) — ADE skipped",
                  doc_hash, time.perf_counter() - t0)
