@@ -37,11 +37,18 @@ export interface TranslateResponse {
   items: ChecklistItem[];
 }
 
-export async function generateChecklist(fileUri: string, fileName: string): Promise<GeneratedChecklist> {
+export async function generateChecklist(
+  fileUri: string, 
+  fileName: string, 
+  force: boolean = false
+): Promise<GeneratedChecklist> {
   const formData = new FormData();
   formData.append('file', { uri: fileUri, name: fileName, type: 'application/pdf' } as any);
 
-  const res = await fetch(`${API_BASE}/api/checklists/generate`, {
+  const url = new URL(`${API_BASE}/api/checklists/generate`);
+  if (force) url.searchParams.append('force', 'true');
+
+  const res = await fetch(url.toString(), {
     method: 'POST',
     body: formData,
   });

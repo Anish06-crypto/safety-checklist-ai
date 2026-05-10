@@ -15,7 +15,9 @@ import { useChecklistStore } from '../store/useChecklistStore';
 
 export default function UploadScreen() {
   const [loading, setLoading] = useState(false);
+  const [force, setForce] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
   const setChecklist = useChecklistStore((s) => s.setChecklist);
   const setChunks = useChecklistStore((s) => s.setChunks);
   const reset = useChecklistStore((s) => s.reset);
@@ -35,10 +37,10 @@ export default function UploadScreen() {
     setLoading(true);
 
     try {
-      const checklist = await generateChecklist(file.uri, file.name);
+      const checklist = await generateChecklist(file.uri, file.name, force);
       setChecklist(checklist);
 
-      // Fetch grounding chunks in parallel or immediately after
+      // Fetch grounding chunks
       const chunks = await getChunks(checklist.source_document_hash).catch(() => []);
       setChunks(chunks);
 
@@ -79,10 +81,27 @@ export default function UploadScreen() {
               </Text>
             </View>
           ) : (
-            <TouchableOpacity style={styles.uploadBtn} onPress={handlePick}>
-              <Ionicons name="document-attach-outline" size={20} color="#FFFFFF" />
-              <Text style={styles.uploadBtnText}>Select PDF</Text>
-            </TouchableOpacity>
+            <View style={{ gap: 12 }}>
+              <TouchableOpacity style={styles.uploadBtn} onPress={handlePick}>
+                <Ionicons name="document-attach-outline" size={20} color="#FFFFFF" />
+                <Text style={styles.uploadBtnText}>Select PDF</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.forceToggle} 
+                onPress={() => setForce(!force)}
+                activeOpacity={0.7}
+              >
+                <Ionicons 
+                  name={force ? "refresh-circle" : "refresh-circle-outline"} 
+                  size={18} 
+                  color={force ? "#3B82F6" : "#64748B"} 
+                />
+                <Text style={[styles.forceText, force && { color: '#F8FAFC' }]}>
+                  {force ? "Force Regeneration Active" : "Use Cache (Recommended)"}
+                </Text>
+              </TouchableOpacity>
+            </View>
           )}
 
           {error && (
@@ -166,6 +185,18 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '600',
+  },
+  forceToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 4,
+  },
+  forceText: {
+    color: '#64748B',
+    fontSize: 12,
+    fontWeight: '500',
   },
   loadingArea: {
     alignItems: 'center',
