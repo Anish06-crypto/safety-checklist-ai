@@ -1,18 +1,18 @@
-import fitz
 import hashlib
+import os
+import tempfile
+from pathlib import Path
+from landingai_ade import LandingAIADE
+
+# Client is initialised once — reads VISION_AGENT_API_KEY from environment
+_client = None
 
 
-def _is_annex_page(page) -> bool:
-    blocks = page.get_text("blocks")
-    if not blocks:
-        return False
-    # Check first 4 blocks — real PDFs often have page numbers or headers
-    # before the "Annex X" heading
-    for block in blocks[:4]:
-        text = block[4].strip().upper()
-        if text.startswith("ANNEX"):
-            return True
-    return False
+def _get_client() -> LandingAIADE:
+    global _client
+    if _client is None:
+        _client = LandingAIADE()
+    return _client
 
 
 def _compute_hash(file_path: str) -> str:
@@ -20,33 +20,41 @@ def _compute_hash(file_path: str) -> str:
         return hashlib.sha256(f.read()).hexdigest()[:16]
 
 
-def extract_from_pdf(file_path: str) -> dict:
-    doc = fitz.open(file_path)
-
-    sample_text = doc[0].get_text()[:500] if len(doc) > 0 else ""
-
-    prose_text = ""
-    for page_num in range(21, min(35, len(doc))):
-        page = doc[page_num]
-        if not _is_annex_page(page):
-            prose_text += page.get_text()
-
-    annex_blocks = []
-    for page_num in range(39, len(doc)):
-        page = doc[page_num]
-        if _is_annex_page(page):
-            blocks = page.get_text("blocks")
-            annex_blocks.append({
-                "page": page_num + 1,
-                "blocks": [b[4].strip() for b in blocks if b[4].strip()],
-            })
-
+def extract_from_pdf(file_path: str, filename: str = "document.pdf") -> dict:
     doc_hash = _compute_hash(file_path)
-    doc.close()
+
+    if os.environ.get("USE_ADE", "true").lower() == "false":
+        # PyMuPDF fallback — no ADE credits consumed
+        import fitz
+        doc = fitz.open(file_path)
+        markdown = "\n\n".join(
+            doc[i].get_text() for i in range(len(doc))
+        )
+        doc.close()
+        return {
+            "sample_text": markdown[:500],
+            "prose_text": markdown,
+            "annex_blocks": [],
+            "document_hash": doc_hash,
+        }
+
+    client = _get_client()
+
+    # ADE parse — preserves tables, images, charts as structured markdown
+    response = client.parse(
+        document=Path(file_path),
+        model="dpt-2-latest",
+    )
+
+    markdown = response.markdown
+
+    # Sample text for DROPS detection — first 500 chars
+    sample_text = markdown[:500]
+
 
     return {
         "sample_text": sample_text,
-        "prose_text": prose_text,
-        "annex_blocks": annex_blocks,
+        "prose_text": markdown,   # Full ADE markdown — tables preserved inline
+        "annex_blocks": [],       # No longer needed
         "document_hash": doc_hash,
     }

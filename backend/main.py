@@ -1,3 +1,4 @@
+# main.py
 import logging
 import os
 import tempfile
@@ -12,7 +13,6 @@ import database.mongo as db
 import services.detector as detector_svc
 import services.extractor as extractor_svc
 import services.generator as generator_svc
-import services.table_parser as table_parser_svc
 import services.translator as translator_svc
 from models.checklist import GeneratedChecklist
 
@@ -138,7 +138,7 @@ async def generate(
     # --- Extract ---
     try:
         t0 = time.perf_counter()
-        extracted = extractor_svc.extract_from_pdf(tmp_path)
+        extracted = extractor_svc.extract_from_pdf(tmp_path, filename=file.filename)
         log.info("[2/6] Extraction complete — hash=%s prose_chars=%d annex_pages=%d (%.2fs)",
                  extracted["document_hash"],
                  len(extracted["prose_text"]),
@@ -171,16 +171,6 @@ async def generate(
         log.info("[4/6] Cache MISS — hash=%s (%.2fs)",
                  extracted["document_hash"], time.perf_counter() - t0)
 
-    # --- Parse annexes ---
-    t0 = time.perf_counter()
-    # DEBUG: log first 5 blocks from ALL annex pages so we can see the real format
-    for page in extracted["annex_blocks"]:
-        for block in page["blocks"][:5]:
-            log.debug("ANNEX BLOCK page=%d: %r", page["page"], block[:200])
-    annex_items = table_parser_svc.parse_annex_blocks(extracted["annex_blocks"])
-    log.info("[5/6] Annex parser — %d items extracted (%.2fs)",
-             len(annex_items), time.perf_counter() - t0)
-
     # --- LLM generation ---
     t0 = time.perf_counter()
     log.info("[6/6] Calling Groq LLM for prose generation...")
@@ -188,7 +178,7 @@ async def generate(
         extracted["prose_text"],
         file.filename,
         extracted["document_hash"],
-        annex_items,
+        [],  # ADE markdown contains everything — no separate annex items
     )
     log.info("[6/6] LLM generation complete — %d items total (%.2fs)",
              checklist.item_count, time.perf_counter() - t0)

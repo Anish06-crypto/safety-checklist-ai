@@ -1,4 +1,6 @@
+# generator.py
 import json
+import logging
 import os
 import uuid
 from datetime import datetime
@@ -11,9 +13,16 @@ FALLBACK_MODEL = os.environ.get("GROQ_MODEL_FALLBACK", "llama-3.1-70b-versatile"
 
 _groq_client = None
 
+log = logging.getLogger(__name__)
+
 SYSTEM_PROMPT = """You are a safety inspection specialist for the offshore energy industry.
 You extract structured inspection checklists from DROPS (Dropped Object
 Prevention Scheme) safety procedure documents.
+
+The document text is structured markdown extracted by an agentic document 
+parser. Tables appear as markdown tables with headers and rows intact. 
+Extract checklist items from BOTH prose paragraphs AND table rows — 
+inspection tables often contain the most specific action and criteria data.
 
 DROPS Severity Classification — based on DROPS Calculator 2021 thresholds.
 Severity is determined by the mass of the component and the height from
@@ -141,6 +150,13 @@ def generate_from_prose(
     annex_items: list[ChecklistItem],
 ) -> GeneratedChecklist:
     client = _get_client()
+
+    # Rough token estimate — 1 token ≈ 4 chars
+    estimated_tokens = (len(SYSTEM_PROMPT) + len(prose_text)) // 4
+    log.info("Estimated input tokens: ~%d (128K limit)", estimated_tokens)
+
+    if estimated_tokens > 100_000:
+        log.warning("Input approaching token limit — consider chunking for documents this size")
 
     try:
         raw = _call_groq(client, MODEL, prose_text)
