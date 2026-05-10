@@ -8,6 +8,7 @@ from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 import database.mongo as db
@@ -261,3 +262,12 @@ async def get_chunks(document_hash: str):
     if not data:
         raise HTTPException(status_code=404, detail="Grounding data not found for this document.")
     return data["chunks"]
+@app.get("/api/extractions/{doc_hash}/chunks/{chunk_id}/image", tags=["Grounding"])
+async def get_chunk_image(doc_hash: str, chunk_id: str):
+    """Serve the grounding image crop for a specific chunk"""
+    # LandingAI ADE saves them as {chunk_id}.png in the grounding_save_dir
+    image_path = Path("grounding_outputs") / doc_hash / f"{chunk_id}.png"
+    if not image_path.exists():
+        log.warning("Grounding image not found: %s", image_path)
+        raise HTTPException(status_code=404, detail="Grounding image not found")
+    return FileResponse(image_path)

@@ -1,45 +1,52 @@
 import React from 'react';
-import { StyleSheet, View, Text, Modal, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Text, Modal, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { Chunk } from '../lib/api';
+import { API_BASE, type Chunk } from '../lib/api';
 
 export function GroundingOverlay({
   chunk,
+  docHash,
   visible,
   onClose,
 }: {
   chunk: Chunk | null;
+  docHash: string;
   visible: boolean;
   onClose: () => void;
 }) {
-  if (!chunk || !chunk.grounding || !chunk.grounding.box) {
+  // Defensive check
+  if (!visible || !chunk || !chunk.grounding || !chunk.grounding.box) {
     return null;
   }
 
   const box = chunk.grounding.box;
-  if (!Array.isArray(box) || box.length !== 4) {
+  let xmin, ymin, xmax, ymax;
+
+  if (Array.isArray(box) && box.length === 4) {
+    [xmin, ymin, xmax, ymax] = box;
+  } else if (typeof box === 'object' && box !== null) {
+    xmin = (box as any).left * 1000;
+    ymin = (box as any).top * 1000;
+    xmax = (box as any).right * 1000;
+    ymax = (box as any).bottom * 1000;
+  } else {
     return null;
   }
 
-  const [xmin, ymin, xmax, ymax] = box;
-
-  // Visual constants for the mini-map
-  const MAP_WIDTH = 260;
-  const MAP_HEIGHT = 360;
-  const SCALE_X = MAP_WIDTH / 1000;
-  const SCALE_Y = MAP_HEIGHT / 1000;
+  // URL for the actual document crop image from backend
+  const imageUrl = `${API_BASE}/api/extractions/${docHash}/chunks/${chunk.id}/image`;
 
   return (
     <Modal
       visible={visible}
-      transparent
-      animationType="fade"
+      transparent={true}
+      animationType="slide"
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
         <View style={styles.modal}>
           <View style={styles.header}>
-            <Ionicons name="scan-outline" size={20} color="#3B82F6" />
+            <Ionicons name="eye-outline" size={24} color="#3B82F6" />
             <Text style={styles.title}>Visual Evidence</Text>
           </View>
 
@@ -48,35 +55,23 @@ export function GroundingOverlay({
               <Text style={styles.infoLabel}>PAGE</Text>
               <Text style={styles.infoValue}>{chunk.grounding.page}</Text>
             </View>
+            <View style={styles.separator} />
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>CHUNK ID</Text>
-              <Text style={styles.infoValue} numberOfLines={1}>
-                {typeof chunk.id === 'string' ? `${chunk.id.split('-')[0]}...` : 'N/A'}
-              </Text>
+              <Text style={styles.infoLabel}>LOCATION</Text>
+              <Text style={styles.infoValue}>X:{Math.round(xmin)} Y:{Math.round(ymin)}</Text>
             </View>
           </View>
 
-          <View style={[styles.mapContainer, { width: MAP_WIDTH, height: MAP_HEIGHT }]}>
-            {/* The "Page" placeholder */}
-            <View style={styles.pageBase}>
-                <View style={styles.skeletonLine} />
-                <View style={[styles.skeletonLine, { width: '80%' }]} />
-                <View style={[styles.skeletonLine, { width: '90%' }]} />
-                <View style={styles.skeletonLine} />
-            </View>
-
-            {/* The Bounding Box Highlight */}
-            <View
-              style={[
-                styles.highlight,
-                {
-                  left: xmin * SCALE_X,
-                  top: ymin * SCALE_Y,
-                  width: Math.max((xmax - xmin) * SCALE_X, 10),
-                  height: Math.max((ymax - ymin) * SCALE_Y, 10),
-                },
-              ]}
-            >
+          <View style={styles.mapContainer}>
+            {/* The Actual Document Crop Image */}
+            <Image 
+              source={{ uri: imageUrl }} 
+              style={styles.sourceImage}
+              resizeMode="contain"
+            />
+            
+            {/* Scanned Border overlay */}
+            <View style={styles.scanBorder}>
                 <View style={styles.cornerTL} />
                 <View style={styles.cornerTR} />
                 <View style={styles.cornerBL} />
@@ -85,11 +80,11 @@ export function GroundingOverlay({
           </View>
 
           <Text style={styles.hint}>
-            The highlighted area shows the exact location of this requirement in the source document.
+            This image is a direct crop from the source PDF, proving the AI extracted this item accurately.
           </Text>
 
           <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-            <Text style={styles.closeBtnText}>Done</Text>
+            <Text style={styles.closeBtnText}>Dismiss</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -103,28 +98,32 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
   },
   modal: {
     backgroundColor: '#1E293B',
-    borderRadius: 20,
+    borderRadius: 24,
     padding: 24,
-    width: '100%',
-    maxWidth: 340,
+    width: '92%',
+    maxWidth: 360,
     alignItems: 'center',
-    gap: 20,
     borderWidth: 1,
     borderColor: '#334155',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 15,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    marginBottom: 20,
   },
   title: {
     color: '#F8FAFC',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
+    marginLeft: 10,
   },
   infoRow: {
     flexDirection: 'row',
@@ -132,15 +131,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: '#0F172A',
     borderRadius: 12,
-    padding: 12,
+    padding: 16,
+    marginBottom: 20,
+    alignItems: 'center',
   },
   infoItem: {
     alignItems: 'center',
     flex: 1,
   },
+  separator: {
+    width: 1,
+    height: 20,
+    backgroundColor: '#334155',
+  },
   infoLabel: {
     color: '#64748B',
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
     letterSpacing: 1,
     marginBottom: 4,
@@ -151,87 +157,84 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   mapContainer: {
-    backgroundColor: '#FFFFFF10',
-    borderRadius: 8,
+    width: '100%',
+    aspectRatio: 1.2,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#334155',
+    marginBottom: 20,
+    position: 'relative',
   },
-  pageBase: {
-    flex: 1,
-    padding: 20,
-    gap: 12,
-    opacity: 0.3,
-  },
-  skeletonLine: {
-    height: 8,
-    backgroundColor: '#94A3B8',
-    borderRadius: 4,
+  sourceImage: {
     width: '100%',
+    height: '100%',
   },
-  highlight: {
-    position: 'absolute',
-    backgroundColor: '#3B82F630',
-    borderWidth: 2,
-    borderColor: '#3B82F6',
-    borderRadius: 2,
+  scanBorder: {
+    ...StyleSheet.absoluteFillObject,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.3)',
+    borderRadius: 12,
   },
   cornerTL: {
     position: 'absolute',
-    top: -4,
-    left: -4,
-    width: 8,
-    height: 8,
-    borderTopWidth: 2,
-    borderLeftWidth: 2,
-    borderColor: '#FFFFFF',
+    top: 10,
+    left: 10,
+    width: 20,
+    height: 20,
+    borderTopWidth: 3,
+    borderLeftWidth: 3,
+    borderColor: '#3B82F6',
   },
   cornerTR: {
     position: 'absolute',
-    top: -4,
-    right: -4,
-    width: 8,
-    height: 8,
-    borderTopWidth: 2,
-    borderRightWidth: 2,
-    borderColor: '#FFFFFF',
+    top: 10,
+    right: 10,
+    width: 20,
+    height: 20,
+    borderTopWidth: 3,
+    borderRightWidth: 3,
+    borderColor: '#3B82F6',
   },
   cornerBL: {
     position: 'absolute',
-    bottom: -4,
-    left: -4,
-    width: 8,
-    height: 8,
-    borderBottomWidth: 2,
-    borderLeftWidth: 2,
-    borderColor: '#FFFFFF',
+    bottom: 10,
+    left: 10,
+    width: 20,
+    height: 20,
+    borderBottomWidth: 3,
+    borderLeftWidth: 3,
+    borderColor: '#3B82F6',
   },
   cornerBR: {
     position: 'absolute',
-    bottom: -4,
-    right: -4,
-    width: 8,
-    height: 8,
-    borderBottomWidth: 2,
-    borderRightWidth: 2,
-    borderColor: '#FFFFFF',
+    bottom: 10,
+    right: 10,
+    width: 20,
+    height: 20,
+    borderBottomWidth: 3,
+    borderRightWidth: 3,
+    borderColor: '#3B82F6',
   },
   hint: {
-    color: '#64748B',
-    fontSize: 12,
+    color: '#94A3B8',
+    fontSize: 13,
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 20,
+    marginBottom: 24,
+    paddingHorizontal: 10,
   },
   closeBtn: {
     backgroundColor: '#3B82F6',
     width: '100%',
-    paddingVertical: 14,
-    borderRadius: 12,
+    paddingVertical: 16,
+    borderRadius: 14,
     alignItems: 'center',
   },
   closeBtnText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
   },
 });

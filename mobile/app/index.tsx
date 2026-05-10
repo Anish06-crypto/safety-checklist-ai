@@ -42,6 +42,7 @@ export default function UploadScreen() {
 
       // Fetch grounding chunks
       const chunks = await getChunks(checklist.source_document_hash).catch(() => []);
+      console.log('Fetched grounding chunks:', chunks.length);
       setChunks(chunks);
 
       router.push('/checklist');

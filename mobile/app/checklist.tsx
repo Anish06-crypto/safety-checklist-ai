@@ -24,10 +24,20 @@ export default function ChecklistScreen() {
   const [selectedChunk, setSelectedChunk] = useState<Chunk | null>(null);
 
   const handleViewEvidence = (chunkId?: string) => {
-    if (!chunkId) return;
+    console.log('handleViewEvidence called with ID:', chunkId);
+    if (!chunkId) {
+      console.warn('No chunkId provided to handleViewEvidence');
+      return;
+    }
+    
+    console.log('Searching in chunks array of size:', chunks.length);
     const chunk = chunks.find((c) => c.id === chunkId);
+    
     if (chunk) {
+      console.log('Chunk found! Page:', chunk.grounding.page);
       setSelectedChunk(chunk);
+    } else {
+      console.warn('Chunk not found for ID:', chunkId);
     }
   };
 
@@ -91,6 +101,7 @@ export default function ChecklistScreen() {
       <GroundingOverlay
         visible={!!selectedChunk}
         chunk={selectedChunk}
+        docHash={checklist.source_document_hash}
         onClose={() => setSelectedChunk(null)}
       />
     </SafeAreaView>

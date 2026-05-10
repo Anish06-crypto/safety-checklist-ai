@@ -16,7 +16,7 @@ export interface Chunk {
   type: string;
   grounding: {
     page: number;
-    box: [number, number, number, number];
+    box: { left: number; top: number; right: number; bottom: number } | number[];
   };
 }
 

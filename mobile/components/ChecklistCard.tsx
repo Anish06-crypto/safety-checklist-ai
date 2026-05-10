@@ -46,6 +46,7 @@ export function ChecklistCard({
               style={styles.evidenceBtn}
               onPress={(e) => {
                 e.stopPropagation();
+                console.log('Evidence button pressed for chunk:', item.chunk_id);
                 onViewEvidence?.();
               }}
             >
