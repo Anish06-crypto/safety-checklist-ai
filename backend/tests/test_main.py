@@ -113,7 +113,7 @@ def test_generate_full_pipeline_saves_and_returns_checklist(monkeypatch):
     monkeypatch.setattr("main.db.get_by_hash", AsyncMock(return_value=None))
     monkeypatch.setattr(
         "services.generator.generate_from_prose",
-        lambda *_: SAMPLE_CHECKLIST,
+        lambda *args, **kwargs: SAMPLE_CHECKLIST,
     )
     monkeypatch.setattr("main.db.save_checklist", AsyncMock(return_value="cl-abc123"))
 
@@ -140,7 +140,7 @@ def test_generate_force_bypasses_cache(monkeypatch):
     monkeypatch.setattr("main.db.get_by_hash", AsyncMock(return_value=SAMPLE_CHECKLIST))
     monkeypatch.setattr(
         "services.generator.generate_from_prose",
-        lambda *_: SAMPLE_CHECKLIST,
+        lambda *args, **kwargs: SAMPLE_CHECKLIST,
     )
     monkeypatch.setattr("main.db.save_checklist", AsyncMock(return_value="cl-abc123"))
 

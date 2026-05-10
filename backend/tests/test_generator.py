@@ -12,16 +12,8 @@ VALID_ITEM = {
     "examination_frequency": "6-monthly",
 }
 
-ANNEX_ITEMS = [
-    ChecklistItem(
-        id="annex-1",
-        action="Check keeper plates.",
-        acceptance_criteria="Keeper plates secured.",
-        failure_criteria="Tag and remove from service.",
-        severity=DROPSSeverity.MAJOR,
-        source_section="Annex C",
-        examination_frequency="Pre-use",
-    )
+CHUNKS_DATA = [
+    {"id": "chunk-uuid-123", "markdown": "Inspect crown block assembly sheave pins.", "type": "text"}
 ]
 
 
@@ -52,7 +44,7 @@ def test_item_count_equals_items_length(monkeypatch):
     monkeypatch.setattr("services.generator._groq_client", mock_client)
 
     from services.generator import generate_from_prose
-    result = generate_from_prose("prose text", "test.pdf", "abc123", ANNEX_ITEMS)
+    result = generate_from_prose("prose text", "test.pdf", "abc123", CHUNKS_DATA)
 
     assert result.item_count == len(result.items)
 

@@ -187,12 +187,11 @@ def generate_from_prose(prose_text: str, document_name: str, document_hash: str,
     client = _get_client()
     
     # 1. LLM Extraction
-    raw_output = _call_groq(client, MODEL, prose_text)
-    
     try:
+        raw_output = _call_groq(client, MODEL, prose_text)
         items_data = _parse_llm_output(raw_output)
     except Exception as e:
-        log.error("Failed to parse LLM output: %s. Falling back to Llama-3.1.", e)
+        log.error("Failed to call LLM or parse output: %s. Falling back to Llama-3.1.", e)
         raw_output = _call_groq(client, FALLBACK_MODEL, prose_text)
         items_data = _parse_llm_output(raw_output)
 
@@ -201,7 +200,8 @@ def generate_from_prose(prose_text: str, document_name: str, document_hash: str,
         items_data = validate_grounding(items_data, chunks)
 
     # 3. Model instantiation
-    items = [ChecklistItem(**item) for item in items_data]
+    # Use _validate_item to generate IDs and clean data
+    items = [item for data in items_data if (item := _validate_item(data)) is not None]
     
     return GeneratedChecklist(
         id=f"cl-{uuid.uuid4().hex[:8]}",
