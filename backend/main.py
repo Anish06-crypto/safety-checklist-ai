@@ -204,9 +204,9 @@ async def generate(
     t0 = time.perf_counter()
     checklist = generator_svc.generate_from_prose(
         extracted["prose_text"],
-        file.filename,
-        doc_hash,
-        []
+        document_name=file.filename,
+        document_hash=doc_hash,
+        chunks=extracted.get("chunks", [])
     )
     log.info("[6/7] Checklist generated — items=%d (%.2fs)", len(checklist.items), time.perf_counter() - t0)
 

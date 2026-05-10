@@ -76,9 +76,9 @@ exact fields:
   For event-triggered inspections (post-jarring, post-incident, post-modification),
   use "As required". Never invent a frequency not supported by the document.
 - chunk_id: the exact ID string from the <a id='...'></a> markers found in the markdown.
-  Example: if a paragraph starts with <a id='7e7343e0-6a1b-4171-888a-d51d9f8e4040'></a>, 
-  the chunk_id for that item is '7e7343e0-6a1b-4171-888a-d51d9f8e4040'.
-  This ID is CRITICAL for visual evidence. Do not omit it.
+  You MUST pick the anchor tag that IMMEDIATELY PRECEDES the requirement text or the 
+  table row you are extracting. Never reuse an ID from a different section. 
+  This ID is the ONLY way the user can see the visual evidence—it MUST be accurate.
 
 Return ONLY a valid JSON array. No preamble. No explanation.
 No markdown code fences. Start with [ and end with ]."""
@@ -98,11 +98,7 @@ def _call_groq(client, model: str, prose_text: str) -> str:
         max_tokens=4000,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": (
-                f"Extract inspection checklist items from these DROPS procedure sections:\n\n"
-                f"{prose_text}\n\n"
-                "Return 8-12 inspection items covering the most safety-critical aspects."
-            )},
+            {"role": "user", "content": f"Extract 8-12 safety-critical inspection items with their precise chunk_ids from this DROPS procedure:\n\n{prose_text}"},
         ],
     )
     return response.choices[0].message.content.strip()
@@ -148,36 +144,71 @@ def _validate_item(data: dict) -> ChecklistItem | None:
         return None
 
 
-def generate_from_prose(
-    prose_text: str,
-    document_name: str,
-    document_hash: str,
-    annex_items: list[ChecklistItem],
-) -> GeneratedChecklist:
+def validate_grounding(items: list[dict], chunks: list[dict]) -> list[dict]:
+    """
+    Verify that the chunk_id selected by LLM actually contains text related to the item.
+    """
+    if not chunks:
+        return items
+
+    chunk_map = {c["id"]: c.get("markdown", "").lower() for c in chunks}
+    
+    validated_count = 0
+    for item in items:
+        cid = item.get("chunk_id")
+        if not cid or cid not in chunk_map:
+            item["chunk_id"] = None
+            continue
+            
+        chunk_text = chunk_map[cid]
+        action_text = item.get("action", "").lower()
+        
+        stop_words = {"inspect", "check", "verify", "ensure", "monitor", "with", "from", "each", "that", "this"}
+        keywords = [w for w in action_text.replace(",", "").replace(".", "").split() 
+                   if len(w) > 3 and w not in stop_words]
+        
+        if not keywords:
+            match = action_text[:10] in chunk_text
+        else:
+            match = any(k in chunk_text for k in keywords)
+        
+        if not match:
+            log.warning("Grounding MISMATCH: Chunk %s text doesn't match action. Clearing link.", cid)
+            item["chunk_id"] = None
+        else:
+            validated_count += 1
+            
+    log.info("Grounding validation complete: %d/%d items verified.", validated_count, len(items))
+    return items
+
+
+def generate_from_prose(prose_text: str, document_name: str, document_hash: str, chunks: list[dict] = None) -> GeneratedChecklist:
+    """Orchestrates the full generation pipeline with validation."""
     client = _get_client()
-
-    # Rough token estimate — 1 token ≈ 4 chars
-    estimated_tokens = (len(SYSTEM_PROMPT) + len(prose_text)) // 4
-    log.info("Estimated input tokens: ~%d (128K limit)", estimated_tokens)
-
-    if estimated_tokens > 100_000:
-        log.warning("Input approaching token limit — consider chunking for documents this size")
-
+    
+    # 1. LLM Extraction
+    raw_output = _call_groq(client, MODEL, prose_text)
+    
     try:
-        raw = _call_groq(client, MODEL, prose_text)
-    except Exception:
-        raw = _call_groq(client, FALLBACK_MODEL, prose_text)
+        items_data = _parse_llm_output(raw_output)
+    except Exception as e:
+        log.error("Failed to parse LLM output: %s. Falling back to Llama-3.1.", e)
+        raw_output = _call_groq(client, FALLBACK_MODEL, prose_text)
+        items_data = _parse_llm_output(raw_output)
 
-    items_data = _parse_llm_output(raw)
-    prose_items = [item for data in items_data if (item := _validate_item(data)) is not None]
-    all_items = prose_items + annex_items
+    # 2. Grounding Validation
+    if chunks:
+        items_data = validate_grounding(items_data, chunks)
 
+    # 3. Model instantiation
+    items = [ChecklistItem(**item) for item in items_data]
+    
     return GeneratedChecklist(
-        id=str(uuid.uuid4()),
+        id=f"cl-{uuid.uuid4().hex[:8]}",
         document_name=document_name,
         generated_at=datetime.now(UTC).isoformat(),
         source_document_hash=document_hash,
         status="current",
-        items=all_items,
-        item_count=len(all_items),
+        items=items,
+        item_count=len(items)
     )

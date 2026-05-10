@@ -65,6 +65,7 @@ export function GroundingOverlay({
           <View style={styles.mapContainer}>
             {/* The Actual Document Crop Image */}
             <Image 
+              key={chunk.id}
               source={{ uri: imageUrl }} 
               style={styles.sourceImage}
               resizeMode="contain"
