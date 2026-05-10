@@ -186,6 +186,10 @@ async def generate(
         return cached_checklist
 
     log.info("[5/7] Generating checklist items from markdown via Groq LLM")
+    # Debug: Check for grounding markers
+    marker_count = extracted["prose_text"].count("<a id=")
+    log.debug("Grounding markers found in markdown: %d", marker_count)
+    
     t0 = time.perf_counter()
     checklist = generator_svc.generate_from_prose(
         extracted["prose_text"],
