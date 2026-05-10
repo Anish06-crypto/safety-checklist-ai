@@ -138,6 +138,9 @@ async def generate(
     doc_hash = hashlib.sha256(contents).hexdigest()[:16]
     log.info("[1/7] Document hash computed — hash=%s bytes=%d", doc_hash, len(contents))
 
+    # Always ensure the source PDF is in MongoDB for persistent visual grounding
+    await db.save_pdf(doc_hash, contents)
+
     t0 = time.perf_counter()
     extraction_cache = None if force else await db.get_extraction(doc_hash)
     
@@ -153,16 +156,12 @@ async def generate(
     else:
         log.info("[2/7] Extraction cache MISS — hash=%s — calling ADE", doc_hash)
         
-        # Save PDF to persistent uploads directory for on-the-fly cropping
-        uploads_dir = Path("uploads")
-        uploads_dir.mkdir(exist_ok=True)
-        pdf_path = uploads_dir / f"{doc_hash}.pdf"
+        # Save PDF to MongoDB for persistent persistent grounding access
+        await db.save_pdf(doc_hash, contents)
         
-        if not pdf_path.exists():
-            with open(pdf_path, "wb") as f:
-                f.write(contents)
-        
-        tmp_path = str(pdf_path)
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            tmp.write(contents)
+            tmp_path = tmp.name
 
         try:
             t_ade = time.perf_counter()
@@ -285,24 +284,29 @@ async def get_chunk_image(doc_hash: str, chunk_id: str):
     if not chunk or "grounding" not in chunk:
         raise HTTPException(status_code=404, detail="Grounding metadata not found for this chunk")
     
-    # 3. Open source PDF
-    pdf_path = Path("uploads") / f"{doc_hash}.pdf"
-    if not pdf_path.exists():
-        log.warning("Source PDF missing for crop: %s", pdf_path)
-        raise HTTPException(status_code=404, detail="Source PDF missing. Please re-upload.")
+    # 3. Get source PDF from MongoDB
+    pdf_bytes = await db.get_pdf(doc_hash)
+    if not pdf_bytes:
+        log.warning("Source PDF missing in DB for hash: %s", doc_hash)
+        raise HTTPException(status_code=404, detail="Source PDF missing from database. Please re-upload.")
     
     # 4. Perform crop
     try:
-        doc = fitz.open(str(pdf_path))
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         page_idx = chunk["grounding"]["page"] - 1
         page = doc[page_idx]
         box = chunk["grounding"]["box"]
         
         w, h = page.rect.width, page.rect.height
+        log.info("Cropping chunk %s: page=%d size=%dx%d box=%s", 
+                 chunk_id, page_idx + 1, w, h, box)
+        
         if isinstance(box, dict):
             rect = fitz.Rect(box["left"] * w, box["top"] * h, box["right"] * w, box["bottom"] * h)
         else:
             rect = fitz.Rect(box[0] * w / 1000, box[1] * h / 1000, box[2] * w / 1000, box[3] * h / 1000)
+        
+        log.info("Absolute rect: %s", rect)
 
         # Bake the blue highlight box into the page BEFORE rendering PNG
         page.draw_rect(rect, color=(0.23, 0.51, 0.96), width=2, overlay=True)

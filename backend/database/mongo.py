@@ -54,6 +54,19 @@ async def get_extraction(document_hash: str) -> dict | None:
         return {"markdown": doc["markdown"], "chunks": doc.get("chunks", [])}
     return None
 
+async def save_pdf(document_hash: str, contents: bytes):
+    db = await _get_db()
+    await db.source_pdfs.update_one(
+        {"document_hash": document_hash},
+        {"$set": {"contents": contents}},
+        upsert=True
+    )
+
+async def get_pdf(document_hash: str) -> bytes | None:
+    db = await _get_db()
+    doc = await db.source_pdfs.find_one({"document_hash": document_hash})
+    return doc["contents"] if doc else None
+
 
 async def save_extraction(document_hash: str, markdown: str, chunks: list[dict]) -> None:
     db = await _get_db()
