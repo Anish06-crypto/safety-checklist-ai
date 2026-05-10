@@ -10,13 +10,14 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { generateChecklist } from '../lib/api';
+import { generateChecklist, getChunks } from '../lib/api';
 import { useChecklistStore } from '../store/useChecklistStore';
 
 export default function UploadScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const setChecklist = useChecklistStore((s) => s.setChecklist);
+  const setChunks = useChecklistStore((s) => s.setChunks);
   const reset = useChecklistStore((s) => s.reset);
 
   async function handlePick() {
@@ -36,6 +37,11 @@ export default function UploadScreen() {
     try {
       const checklist = await generateChecklist(file.uri, file.name);
       setChecklist(checklist);
+
+      // Fetch grounding chunks in parallel or immediately after
+      const chunks = await getChunks(checklist.source_document_hash).catch(() => []);
+      setChunks(chunks);
+
       router.push('/checklist');
     } catch (e: any) {
       setError(e.message ?? 'Failed to generate checklist.');

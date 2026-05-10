@@ -34,7 +34,7 @@ def extract_from_pdf(file_path: str, filename: str = "document.pdf") -> dict:
         return {
             "sample_text": markdown[:500],
             "prose_text": markdown,
-            "annex_blocks": [],
+            "chunks": [],
             "document_hash": doc_hash,
         }
 
@@ -54,7 +54,7 @@ def extract_from_pdf(file_path: str, filename: str = "document.pdf") -> dict:
 
     return {
         "sample_text": sample_text,
-        "prose_text": markdown,   # Full ADE markdown — tables preserved inline
-        "annex_blocks": [],       # No longer needed
+        "prose_text": markdown,
+        "chunks": [c.model_dump() for c in response.chunks],
         "document_hash": doc_hash,
     }

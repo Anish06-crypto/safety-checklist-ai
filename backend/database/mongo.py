@@ -47,16 +47,24 @@ async def get_by_hash(document_hash: str) -> GeneratedChecklist | None:
     return GeneratedChecklist(**doc)
 
 
-async def get_extraction(document_hash: str) -> str | None:
+async def get_extraction(document_hash: str) -> dict | None:
     db = await _get_db()
     doc = await db.raw_extractions.find_one({"document_hash": document_hash})
-    return doc["markdown"] if doc else None
+    if doc:
+        return {"markdown": doc["markdown"], "chunks": doc.get("chunks", [])}
+    return None
 
 
-async def save_extraction(document_hash: str, markdown: str) -> None:
+async def save_extraction(document_hash: str, markdown: str, chunks: list[dict]) -> None:
     db = await _get_db()
     await db.raw_extractions.update_one(
         {"document_hash": document_hash},
-        {"$set": {"document_hash": document_hash, "markdown": markdown}},
+        {
+            "$set": {
+                "document_hash": document_hash,
+                "markdown": markdown,
+                "chunks": chunks,
+            }
+        },
         upsert=True,
     )

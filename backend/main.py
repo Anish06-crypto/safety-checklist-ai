@@ -122,48 +122,35 @@ async def generate(
     7. Generate checklist items from ADE markdown via Groq LLM
     8. Persist checklist to MongoDB
     9. Return GeneratedChecklist JSON
-
-    ADE credits are only consumed once per unique document regardless of how many
-    times the same PDF is uploaded. The raw markdown is stored in MongoDB and
-    reused on all subsequent requests for the same document hash.
     """
     t_start = time.perf_counter()
     log.info("POST /api/checklists/generate — file=%s size=%s bytes force=%s",
              file.filename, file.size, force)
 
-    # --- [1/7] Validate file type ---
     if not file.filename.lower().endswith(".pdf"):
         log.warning("Rejected non-PDF upload: %s", file.filename)
         raise HTTPException(status_code=422, detail="Only PDF files are accepted.")
 
-    # --- [2/7] Read bytes and compute hash ---
-    # Hash is computed from raw bytes in memory — no disk I/O needed for this step.
-    # This lets us check the extraction cache before writing a temp file at all.
     contents = await file.read()
     doc_hash = hashlib.sha256(contents).hexdigest()[:16]
     log.info("[1/7] Document hash computed — hash=%s bytes=%d", doc_hash, len(contents))
 
-    # --- [3/7] Check ADE extraction cache ---
     t0 = time.perf_counter()
-    cached_markdown = await db.get_extraction(doc_hash)
-
-    if cached_markdown:
-        # ADE already ran on this document — reuse stored markdown, spend 0 credits
+    extraction_cache = await db.get_extraction(doc_hash)
+    if extraction_cache:
         log.info("[2/7] Extraction cache HIT — hash=%s (%.2fs) — ADE skipped",
                  doc_hash, time.perf_counter() - t0)
         extracted = {
-            "sample_text": cached_markdown[:500],
-            "prose_text": cached_markdown,
-            "annex_blocks": [],
+            "sample_text": extraction_cache["markdown"][:500],
+            "prose_text": extraction_cache["markdown"],
+            "chunks": extraction_cache["chunks"],
             "document_hash": doc_hash,
         }
     else:
-        # Cache miss — write temp file, call ADE, persist markdown, clean up
         log.info("[2/7] Extraction cache MISS — hash=%s — calling ADE", doc_hash)
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
             tmp.write(contents)
             tmp_path = tmp.name
-        log.debug("Temp file written: %s (%d bytes)", tmp_path, len(contents))
 
         try:
             t_ade = time.perf_counter()
@@ -173,122 +160,99 @@ async def generate(
                      len(extracted["prose_text"]),
                      time.perf_counter() - t_ade)
 
-            # Persist raw markdown — future uploads of the same PDF skip ADE entirely
-            await db.save_extraction(extracted["document_hash"], extracted["prose_text"])
+            await db.save_extraction(
+                extracted["document_hash"],
+                extracted["prose_text"],
+                extracted.get("chunks", [])
+            )
             log.info("[2/7] Markdown cached in MongoDB — hash=%s", extracted["document_hash"])
-
         finally:
-            # Always delete temp file — runs even if ADE throws an exception
             os.unlink(tmp_path)
-            log.debug("Temp file deleted: %s", tmp_path)
 
-    # --- [4/7] Detect DROPS document ---
     detection = detector_svc.detect_document_type(extracted["sample_text"])
-    log.info("[3/7] Document detection — is_drops=%s keywords=%s",
-             detection["is_drops"], detection["detected_keywords"])
     if not detection["is_drops"]:
         log.warning("Rejected non-DROPS document: %s", file.filename)
-        raise HTTPException(
-            status_code=422,
-            detail="Document does not appear to be a DROPS procedure.",
-        )
+        raise HTTPException(status_code=422, detail="Document does not appear to be a DROPS procedure.")
 
-    # --- [5/7] Checklist cache check ---
     t0 = time.perf_counter()
     if force:
-        log.info("[4/7] Checklist cache BYPASS — force=true, skipping hash lookup")
+        log.info("[4/7] Checklist cache BYPASS — force=true")
+        cached_checklist = None
     else:
-        existing = await db.get_by_hash(extracted["document_hash"])
-        if existing:
-            log.info("[4/7] Checklist cache HIT — returning existing id=%s (%.2fs)",
-                     existing.id, time.perf_counter() - t0)
-            return existing
-        log.info("[4/7] Checklist cache MISS — hash=%s (%.2fs)",
-                 extracted["document_hash"], time.perf_counter() - t0)
+        cached_checklist = await db.get_by_hash(doc_hash)
 
-    # --- [6/7] LLM generation ---
+    if cached_checklist:
+        log.info("[4/7] Checklist cache HIT — hash=%s (%.2fs)", doc_hash, time.perf_counter() - t0)
+        return cached_checklist
+
+    log.info("[5/7] Generating checklist items from markdown via Groq LLM")
     t0 = time.perf_counter()
-    log.info("[5/7] Calling Groq LLM for checklist generation...")
     checklist = generator_svc.generate_from_prose(
         extracted["prose_text"],
         file.filename,
-        extracted["document_hash"],
-        [],  # ADE markdown contains everything — no separate annex items
+        doc_hash,
+        []
     )
-    log.info("[5/7] LLM generation complete — %d items (%.2fs)",
-             checklist.item_count, time.perf_counter() - t0)
+    log.info("[6/7] Checklist generated — items=%d (%.2fs)", len(checklist.items), time.perf_counter() - t0)
 
-    # --- [7/7] Persist checklist ---
     await db.save_checklist(checklist)
-    log.info("Checklist saved to MongoDB — id=%s", checklist.id)
-
-    log.info("POST /api/checklists/generate DONE — id=%s items=%d elapsed=%.2fs",
-             checklist.id, checklist.item_count, time.perf_counter() - t_start)
+    log.info("[7/7] Pipeline complete — total_time=%.2fs", time.perf_counter() - t_start)
     return checklist
 
 
 @app.get(
     "/api/checklists/{checklist_id}",
     response_model=GeneratedChecklist,
-    summary="Retrieve checklist by ID",
+    summary="Retrieve a generated checklist by ID",
     tags=["Checklists"],
-    responses={
-        404: {"model": ErrorResponse, "description": "Checklist not found"},
-    },
 )
-async def get_checklist_endpoint(checklist_id: str):
-    """Fetch a previously generated checklist from MongoDB by its UUID."""
-    log.info("GET /api/checklists/%s", checklist_id)
+async def get_checklist(checklist_id: str):
     checklist = await db.get_checklist(checklist_id)
-    if checklist is None:
-        log.warning("Checklist not found: %s", checklist_id)
-        raise HTTPException(status_code=404, detail="Checklist not found.")
-    log.info("Checklist retrieved — id=%s items=%d", checklist_id, checklist.item_count)
+    if not checklist:
+        raise HTTPException(status_code=404, detail="Checklist not found")
     return checklist
 
 
 @app.get(
     "/api/checklists/{checklist_id}/items",
     response_model=TranslateResponse,
-    summary="Get checklist items translated into target language",
+    summary="Get translated checklist items",
     tags=["Translation"],
-    responses={
-        404: {"model": ErrorResponse, "description": "Checklist not found"},
-    },
 )
 async def get_translated_items(
     checklist_id: str,
-    lang: str = Query(
-        default="EN",
-        description="Target language code: EN, NB, FR, AR, PL, ID, ES, PT-BR, NL, RO",
-    ),
+    lang: str = Query(..., description="Target language (e.g., NB, FR, ES)")
 ):
-    """
-    Returns checklist items translated into the requested language via DeepL.
-
-    - **EN / EN-GB / EN-US**: passthrough — original items returned unchanged
-    - All other codes: DeepL translation with in-memory cache per (checklist_id, lang) pair
-    - cache_hit: true means the translation was served from cache (no DeepL API call made)
-    - Protected fields (severity, id, examination_frequency) are never translated
-    """
-    log.info("GET /api/checklists/%s/items?lang=%s", checklist_id, lang)
-    checklist = await db.get_checklist(checklist_id)
-    if checklist is None:
-        log.warning("Checklist not found for translation: %s", checklist_id)
-        raise HTTPException(status_code=404, detail="Checklist not found.")
-
-    items = [item.model_dump() for item in checklist.items]
-
     t0 = time.perf_counter()
+    checklist = await db.get_checklist(checklist_id)
+    if not checklist:
+        raise HTTPException(status_code=404, detail="Checklist not found")
+
     translated, cache_hit = translator_svc.translate_checklist_items(
-        checklist_id, items, lang
+        checklist_id, checklist.items, lang.upper()
     )
-    log.info("Translation complete — lang=%s cache_hit=%s items=%d elapsed=%.2fs",
-             lang.upper(), cache_hit, len(translated), time.perf_counter() - t0)
+    log.info("GET /api/checklists/%s/items?lang=%s — cache_hit=%s items=%d (%.2fs)",
+             checklist_id, lang.upper(), cache_hit, len(translated), time.perf_counter() - t0)
 
     return {
         "checklist_id": checklist_id,
         "language": lang.upper(),
         "cache_hit": cache_hit,
-        "items": translated,
+        "items": [item.model_dump() for item in translated],
     }
+
+
+@app.get(
+    "/api/extractions/{document_hash}/chunks",
+    summary="Get visual grounding chunks (bounding boxes) for a document",
+    tags=["Checklists"],
+)
+async def get_chunks(document_hash: str):
+    """
+    Returns the list of chunks (with bounding boxes) for a given document hash.
+    Used by the frontend to highlight regions on the PDF using `chunk_id`.
+    """
+    data = await db.get_extraction(document_hash)
+    if not data:
+        raise HTTPException(status_code=404, detail="Grounding data not found for this document.")
+    return data["chunks"]

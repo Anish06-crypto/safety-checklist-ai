@@ -16,6 +16,7 @@ class ChecklistItem(BaseModel):
     severity: DROPSSeverity
     source_section: str
     examination_frequency: str
+    chunk_id: str | None = None
 
 
 class GeneratedChecklist(BaseModel):

@@ -10,13 +10,26 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChecklistCard } from '../components/ChecklistCard';
+import { GroundingOverlay } from '../components/GroundingOverlay';
 import { useChecklistStore } from '../store/useChecklistStore';
+import type { Chunk } from '../lib/api';
 
 const SEVERITY_ORDER = { CRITICAL: 0, MAJOR: 1, MINOR: 2 } as const;
 
 export default function ChecklistScreen() {
   const checklist = useChecklistStore((s) => s.checklist);
   const displayItems = useChecklistStore((s) => s.displayItems);
+  const chunks = useChecklistStore((s) => s.chunks);
+
+  const [selectedChunk, setSelectedChunk] = React.useState<Chunk | null>(null);
+
+  const handleViewEvidence = (chunkId?: string) => {
+    if (!chunkId) return;
+    const chunk = chunks.find((c) => c.id === chunkId);
+    if (chunk) {
+      setSelectedChunk(chunk);
+    }
+  };
 
   if (!checklist) {
     return (
@@ -67,8 +80,18 @@ export default function ChecklistScreen() {
           </View>
         }
         renderItem={({ item, index }) => (
-          <ChecklistCard item={item} index={index} language="EN" />
+          <ChecklistCard
+            item={item}
+            index={index}
+            language="EN"
+            onViewEvidence={() => handleViewEvidence(item.chunk_id)}
+          />
         )}
+      />
+      <GroundingOverlay
+        visible={!!selectedChunk}
+        chunk={selectedChunk}
+        onClose={() => setSelectedChunk(null)}
       />
     </SafeAreaView>
   );

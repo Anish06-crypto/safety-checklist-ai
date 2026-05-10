@@ -75,6 +75,9 @@ exact fields:
   Do NOT default everything to Pre-use — vary based on document content.
   For event-triggered inspections (post-jarring, post-incident, post-modification),
   use "As required". Never invent a frequency not supported by the document.
+- chunk_id: the exact chunk_id from the source markdown (found in <!-- chunk_id="..." --> markers)
+  that contains the source text for this inspection item. If an item spans multiple chunks,
+  provide the ID of the primary chunk.
 
 Return ONLY a valid JSON array. No preamble. No explanation.
 No markdown code fences. Start with [ and end with ]."""
@@ -138,6 +141,7 @@ def _validate_item(data: dict) -> ChecklistItem | None:
             severity=DROPSSeverity(severity_raw),
             source_section=data.get("source_section", "General"),
             examination_frequency=data.get("examination_frequency", "Pre-use"),
+            chunk_id=data.get("chunk_id"),
         )
     except Exception:
         return None

@@ -8,6 +8,16 @@ export interface ChecklistItem {
   severity: 'CRITICAL' | 'MAJOR' | 'MINOR';
   source_section: string;
   examination_frequency: string;
+  chunk_id?: string;
+}
+
+export interface Chunk {
+  id: string;
+  type: string;
+  grounding: {
+    page: number;
+    box: [number, number, number, number];
+  };
 }
 
 export interface GeneratedChecklist {
@@ -46,6 +56,17 @@ export async function generateChecklist(fileUri: string, fileName: string): Prom
 
 export async function getTranslatedItems(checklistId: string, lang: string): Promise<TranslateResponse> {
   const res = await fetch(`${API_BASE}/api/checklists/${checklistId}/items?lang=${lang}`);
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
+    throw new Error(err.detail ?? `Server error ${res.status}`);
+  }
+
+  return res.json();
+}
+
+export async function getChunks(docHash: string): Promise<Chunk[]> {
+  const res = await fetch(`${API_BASE}/api/extractions/${docHash}/chunks`);
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Unknown error' }));

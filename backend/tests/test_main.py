@@ -18,6 +18,7 @@ SAMPLE_CHECKLIST = GeneratedChecklist(
             severity=DROPSSeverity.CRITICAL,
             source_section="Section 3.1",
             examination_frequency="6-monthly",
+            chunk_id="chunk-uuid-123",
         )
     ],
     item_count=1,
@@ -26,7 +27,7 @@ SAMPLE_CHECKLIST = GeneratedChecklist(
 EXTRACT_RESULT = {
     "sample_text": "DROPS Procedure for Dropped Object Prevention Scheme",
     "prose_text": "## Section 3\nInspection requirements for crown block...",
-    "annex_blocks": [],
+    "chunks": [{"id": "chunk-uuid-123", "type": "text", "grounding": {"page": 1, "box": [10, 10, 100, 100]}}],
     "document_hash": "deadbeef",
 }
 

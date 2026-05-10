@@ -9,10 +9,12 @@ export function ChecklistCard({
   item,
   index,
   language = 'EN',
+  onViewEvidence,
 }: {
   item: ChecklistItem;
   index: number;
   language?: string;
+  onViewEvidence?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const rtl = isRTL(language);
@@ -37,6 +39,20 @@ export function ChecklistCard({
         <Text style={styles.metaText}>{item.source_section}</Text>
         <Text style={styles.metaDot}>·</Text>
         <Text style={styles.metaText}>{item.examination_frequency}</Text>
+        {item.chunk_id && (
+          <>
+            <Text style={styles.metaDot}>·</Text>
+            <TouchableOpacity 
+              style={styles.evidenceBtn}
+              onPress={(e) => {
+                e.stopPropagation();
+                onViewEvidence?.();
+              }}
+            >
+              <Text style={styles.evidenceBtnText}>View Evidence</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
 
       {expanded && (
@@ -103,6 +119,17 @@ const styles = StyleSheet.create({
   metaDot: {
     color: '#475569',
     fontSize: 11,
+  },
+  evidenceBtn: {
+    backgroundColor: '#3B82F620',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  evidenceBtnText: {
+    color: '#60A5FA',
+    fontSize: 10,
+    fontWeight: '600',
   },
   details: {
     marginTop: 10,
