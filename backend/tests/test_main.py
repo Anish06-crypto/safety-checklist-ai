@@ -25,7 +25,7 @@ SAMPLE_CHECKLIST = GeneratedChecklist(
 
 EXTRACT_RESULT = {
     "sample_text": "DROPS Procedure for Dropped Object Prevention Scheme",
-    "prose_text": "Section 3. Inspection requirements for crown block...",
+    "prose_text": "## Section 3\nInspection requirements for crown block...",
     "annex_blocks": [],
     "document_hash": "deadbeef",
 }
@@ -56,7 +56,11 @@ def test_generate_rejects_non_pdf():
 
 
 def test_generate_rejects_non_drops_document(monkeypatch):
-    monkeypatch.setattr("services.extractor.extract_from_pdf", lambda _: EXTRACT_RESULT)
+    # Extractor now accepts filename kwarg — use lambda with **kwargs
+    monkeypatch.setattr(
+        "services.extractor.extract_from_pdf",
+        lambda path, **kwargs: EXTRACT_RESULT,
+    )
     monkeypatch.setattr(
         "services.detector.detect_document_type",
         lambda _: DETECT_NOT_DROPS,
@@ -72,7 +76,10 @@ def test_generate_rejects_non_drops_document(monkeypatch):
 
 
 def test_generate_returns_cached_checklist_on_hash_match(monkeypatch):
-    monkeypatch.setattr("services.extractor.extract_from_pdf", lambda _: EXTRACT_RESULT)
+    monkeypatch.setattr(
+        "services.extractor.extract_from_pdf",
+        lambda path, **kwargs: EXTRACT_RESULT,
+    )
     monkeypatch.setattr("services.detector.detect_document_type", lambda _: DETECT_DROPS)
     monkeypatch.setattr(
         "database.mongo.get_by_hash",
@@ -89,10 +96,13 @@ def test_generate_returns_cached_checklist_on_hash_match(monkeypatch):
 
 
 def test_generate_full_pipeline_saves_and_returns_checklist(monkeypatch):
-    monkeypatch.setattr("services.extractor.extract_from_pdf", lambda _: EXTRACT_RESULT)
+    monkeypatch.setattr(
+        "services.extractor.extract_from_pdf",
+        lambda path, **kwargs: EXTRACT_RESULT,
+    )
     monkeypatch.setattr("services.detector.detect_document_type", lambda _: DETECT_DROPS)
     monkeypatch.setattr("database.mongo.get_by_hash", AsyncMock(return_value=None))
-    monkeypatch.setattr("services.table_parser.parse_annex_blocks", lambda _: [])
+    # No table_parser monkeypatch needed — removed from pipeline
     monkeypatch.setattr(
         "services.generator.generate_from_prose",
         lambda *_: SAMPLE_CHECKLIST,
@@ -108,6 +118,29 @@ def test_generate_full_pipeline_saves_and_returns_checklist(monkeypatch):
     data = response.json()
     assert data["id"] == "cl-abc123"
     assert data["item_count"] == 1
+
+
+def test_generate_force_bypasses_cache(monkeypatch):
+    monkeypatch.setattr(
+        "services.extractor.extract_from_pdf",
+        lambda path, **kwargs: EXTRACT_RESULT,
+    )
+    monkeypatch.setattr("services.detector.detect_document_type", lambda _: DETECT_DROPS)
+    monkeypatch.setattr("database.mongo.get_by_hash", AsyncMock(return_value=SAMPLE_CHECKLIST))
+    monkeypatch.setattr(
+        "services.generator.generate_from_prose",
+        lambda *_: SAMPLE_CHECKLIST,
+    )
+    monkeypatch.setattr("database.mongo.save_checklist", AsyncMock(return_value="cl-abc123"))
+
+    client = _get_client()
+    response = client.post(
+        "/api/checklists/generate?force=true",
+        files={"file": ("drops.pdf", b"fake pdf content", "application/pdf")},
+    )
+    # force=true skips cache — pipeline runs and returns fresh checklist
+    assert response.status_code == 200
+    assert response.json()["id"] == "cl-abc123"
 
 
 def test_get_checklist_returns_200(monkeypatch):

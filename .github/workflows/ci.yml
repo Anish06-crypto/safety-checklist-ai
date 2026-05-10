@@ -13,6 +13,15 @@ jobs:
       run:
         working-directory: backend
 
+    env:
+      # ADE is mocked in tests — USE_ADE=false routes to PyMuPDF fallback
+      # so no real API calls are made and no credits are consumed
+      USE_ADE: "false"
+      VISION_AGENT_API_KEY: "ci-placeholder"
+      GROQ_API_KEY: "ci-placeholder"
+      DEEPL_API_KEY: "ci-placeholder"
+      MONGO_URI: "mongodb://localhost:27017"
+
     steps:
       - uses: actions/checkout@v4
 

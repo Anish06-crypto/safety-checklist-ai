@@ -1,51 +1,120 @@
+import hashlib
 import pytest
-import os
-from services.extractor import extract_from_pdf
-
-FIXTURE_PATH = os.path.join(os.path.dirname(__file__), "fixtures", "drops_fixture.pdf")
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 
-def test_returns_non_empty_prose_text():
-    result = extract_from_pdf(FIXTURE_PATH)
-    assert isinstance(result["prose_text"], str)
-    assert len(result["prose_text"]) > 0
+def _make_mock_parse_response(markdown: str):
+    mock_response = MagicMock()
+    mock_response.markdown = markdown
+    return mock_response
 
 
-def test_returns_non_empty_annex_blocks():
-    result = extract_from_pdf(FIXTURE_PATH)
-    assert isinstance(result["annex_blocks"], list)
-    assert len(result["annex_blocks"]) > 0
+def _write_temp_pdf(tmp_path, content: bytes = b"fake pdf content") -> str:
+    pdf_file = tmp_path / "test.pdf"
+    pdf_file.write_bytes(content)
+    return str(pdf_file)
 
 
-def test_document_hash_is_non_empty_string():
-    result = extract_from_pdf(FIXTURE_PATH)
-    assert isinstance(result["document_hash"], str)
-    assert len(result["document_hash"]) > 0
+def test_returns_expected_keys(tmp_path):
+    mock_response = _make_mock_parse_response("## Section 1\nInspect crown block.")
+    with patch("services.extractor._get_client") as mock_get_client:
+        mock_get_client.return_value.parse.return_value = mock_response
+        from services.extractor import extract_from_pdf
+        result = extract_from_pdf(_write_temp_pdf(tmp_path))
+
+    assert "sample_text" in result
+    assert "prose_text" in result
+    assert "annex_blocks" in result
+    assert "document_hash" in result
 
 
-def test_document_hash_is_deterministic():
-    result_a = extract_from_pdf(FIXTURE_PATH)
-    result_b = extract_from_pdf(FIXTURE_PATH)
-    assert result_a["document_hash"] == result_b["document_hash"]
+def test_prose_text_is_full_ade_markdown(tmp_path):
+    markdown = "## DROPS Inspection\nCheck all overhead equipment."
+    mock_response = _make_mock_parse_response(markdown)
+    with patch("services.extractor._get_client") as mock_get_client:
+        mock_get_client.return_value.parse.return_value = mock_response
+        from services.extractor import extract_from_pdf
+        result = extract_from_pdf(_write_temp_pdf(tmp_path))
+
+    assert result["prose_text"] == markdown
 
 
-def test_sample_text_is_first_500_chars():
-    result = extract_from_pdf(FIXTURE_PATH)
-    assert len(result["sample_text"]) <= 500
+def test_sample_text_is_first_500_chars(tmp_path):
+    markdown = "A" * 1000
+    mock_response = _make_mock_parse_response(markdown)
+    with patch("services.extractor._get_client") as mock_get_client:
+        mock_get_client.return_value.parse.return_value = mock_response
+        from services.extractor import extract_from_pdf
+        result = extract_from_pdf(_write_temp_pdf(tmp_path))
+
+    assert result["sample_text"] == "A" * 500
 
 
-def test_intro_pages_not_in_prose_text():
-    result = extract_from_pdf(FIXTURE_PATH)
-    # Fixture pages 1-21 contain "Introduction Section" — must not appear in prose
-    assert "Introduction Section" not in result["prose_text"]
+def test_annex_blocks_is_empty_list(tmp_path):
+    mock_response = _make_mock_parse_response("some markdown")
+    with patch("services.extractor._get_client") as mock_get_client:
+        mock_get_client.return_value.parse.return_value = mock_response
+        from services.extractor import extract_from_pdf
+        result = extract_from_pdf(_write_temp_pdf(tmp_path))
+
+    assert result["annex_blocks"] == []
 
 
-def test_annex_pages_in_annex_blocks_not_prose():
-    result = extract_from_pdf(FIXTURE_PATH)
-    # Annex content must appear in annex_blocks
-    all_annex_text = " ".join(
-        " ".join(page["blocks"]) for page in result["annex_blocks"]
-    )
-    assert "Annex" in all_annex_text
-    # Annex content must NOT appear in prose_text
-    assert "Post Jarring Checklist" not in result["prose_text"]
+def test_document_hash_is_sha256_of_file(tmp_path):
+    content = b"deterministic pdf content"
+    expected_hash = hashlib.sha256(content).hexdigest()[:16]
+    mock_response = _make_mock_parse_response("markdown content")
+    with patch("services.extractor._get_client") as mock_get_client:
+        mock_get_client.return_value.parse.return_value = mock_response
+        from services.extractor import extract_from_pdf
+        result = extract_from_pdf(_write_temp_pdf(tmp_path, content))
+
+    assert result["document_hash"] == expected_hash
+
+
+def test_document_hash_is_16_chars(tmp_path):
+    mock_response = _make_mock_parse_response("markdown content")
+    with patch("services.extractor._get_client") as mock_get_client:
+        mock_get_client.return_value.parse.return_value = mock_response
+        from services.extractor import extract_from_pdf
+        result = extract_from_pdf(_write_temp_pdf(tmp_path))
+
+    assert len(result["document_hash"]) == 16
+
+
+def test_ade_called_with_correct_model(tmp_path):
+    mock_response = _make_mock_parse_response("markdown")
+    with patch("services.extractor._get_client") as mock_get_client:
+        mock_client = mock_get_client.return_value
+        mock_client.parse.return_value = mock_response
+        from services.extractor import extract_from_pdf
+        extract_from_pdf(_write_temp_pdf(tmp_path), filename="drops.pdf")
+
+    call_kwargs = mock_client.parse.call_args
+    assert call_kwargs.kwargs.get("model") == "dpt-2-latest"
+
+
+def test_filename_passed_to_extractor(tmp_path):
+    """Filename flows through — ADE uses it for file type inference."""
+    mock_response = _make_mock_parse_response("markdown")
+    with patch("services.extractor._get_client") as mock_get_client:
+        mock_client = mock_get_client.return_value
+        mock_client.parse.return_value = mock_response
+        from services.extractor import extract_from_pdf
+        # Should not raise — filename param accepted
+        result = extract_from_pdf(_write_temp_pdf(tmp_path), filename="drops_procedure.pdf")
+
+    assert result is not None
+
+
+def test_pymupdf_fallback_when_use_ade_false(tmp_path, monkeypatch):
+    """When USE_ADE=false, PyMuPDF is used and ADE client is never called."""
+    monkeypatch.setenv("USE_ADE", "false")
+    with patch("services.extractor._get_client") as mock_get_client:
+        from services.extractor import extract_from_pdf
+        result = extract_from_pdf(_write_temp_pdf(tmp_path))
+
+    mock_get_client.assert_not_called()
+    assert "prose_text" in result
+    assert result["annex_blocks"] == []
