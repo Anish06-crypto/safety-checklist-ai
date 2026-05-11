@@ -258,7 +258,8 @@ async def get_translated_items(
         "checklist_id": checklist_id,
         "language": lang.upper(),
         "cache_hit": cache_hit,
-        "items": [item.model_dump() for item in translated],
+        # translate_checklist_items returns dicts; guard against Pydantic models too
+        "items": [item if isinstance(item, dict) else item.model_dump() for item in translated],
     }
 
 
