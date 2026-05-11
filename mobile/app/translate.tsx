@@ -11,8 +11,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChecklistCard } from '../components/ChecklistCard';
+import { GroundingOverlay } from '../components/GroundingOverlay';
 import { LANGUAGES } from '../constants/languages';
-import { getTranslatedItems } from '../lib/api';
+import { getTranslatedItems, getChunkGrounding, type Chunk } from '../lib/api';
 import { useChecklistStore } from '../store/useChecklistStore';
 
 export default function TranslateScreen() {
@@ -23,9 +24,36 @@ export default function TranslateScreen() {
   const setDisplayItems = useChecklistStore((s) => s.setDisplayItems);
   const setCacheHit = useChecklistStore((s) => s.setCacheHit);
   const cacheHit = useChecklistStore((s) => s.cacheHit);
+  const chunks = useChecklistStore((s) => s.chunks);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedChunk, setSelectedChunk] = useState<Chunk | null>(null);
+
+  const docHash = checklist?.source_document_hash;
+
+  const handleViewEvidence = async (chunkId?: string) => {
+    if (!chunkId || !docHash) return;
+
+    // Step 1: check the local chunks array (UUID-level chunks)
+    const localChunk = chunks.find((c) => c.id === chunkId);
+    if (localChunk) {
+      setSelectedChunk(localChunk);
+      return;
+    }
+
+    // Step 2: cell-level ID (e.g. "1-9") — fetch grounding from backend
+    try {
+      const remote = await getChunkGrounding(docHash, chunkId);
+      if (remote) {
+        setSelectedChunk(remote);
+      } else {
+        console.warn('No grounding found for ID:', chunkId);
+      }
+    } catch (err) {
+      console.error('Failed to fetch grounding for', chunkId, err);
+    }
+  };
 
   async function handleLanguageSelect(code: string) {
     if (!checklist) return;
@@ -113,10 +141,21 @@ export default function TranslateScreen() {
             </View>
           }
           renderItem={({ item, index }) => (
-            <ChecklistCard item={item} index={index} language={activeLanguage} />
+            <ChecklistCard 
+              item={item} 
+              index={index} 
+              language={activeLanguage} 
+              onViewEvidence={() => handleViewEvidence(item.chunk_id)}
+            />
           )}
         />
       )}
+      <GroundingOverlay
+        visible={!!selectedChunk}
+        chunk={selectedChunk}
+        docHash={checklist?.source_document_hash || ''}
+        onClose={() => setSelectedChunk(null)}
+      />
     </SafeAreaView>
   );
 }
