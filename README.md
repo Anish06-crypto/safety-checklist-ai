@@ -133,6 +133,13 @@ Features include:
 
 ---
 
+## 🏗 System Architecture
+
+![Architecture Diagram](./assets/system-arch.png)
+![System Architecture](https://excalidraw.com/#json=InN63_BJfnxdKMhIlTFyh,PHI4UPD5gEgi4sg-i5ss-Q)
+
+---
+
 # 🏗 End-to-End Pipeline
 
 ```mermaid
