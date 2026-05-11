@@ -142,7 +142,8 @@ async def generate(
     await db.save_pdf(doc_hash, contents)
 
     t0 = time.perf_counter()
-    extraction_cache = None if force else await db.get_extraction(doc_hash)
+    # Always check for raw extraction to avoid redundant ADE calls (saves cost/time)
+    extraction_cache = await db.get_extraction(doc_hash)
     
     if extraction_cache:
         log.info("[2/7] Extraction cache HIT — hash=%s (%.2fs) — ADE skipped",
@@ -151,6 +152,7 @@ async def generate(
             "sample_text": extraction_cache["markdown"][:500],
             "prose_text": extraction_cache["markdown"],
             "chunks": extraction_cache["chunks"],
+            "grounding": extraction_cache.get("grounding", {}),  # Restore grounding map from cache
             "document_hash": doc_hash,
         }
     else:
@@ -174,7 +176,8 @@ async def generate(
             await db.save_extraction(
                 extracted["document_hash"],
                 extracted["prose_text"],
-                extracted.get("chunks", [])
+                extracted.get("chunks", []),
+                extracted.get("grounding", {})  # Save full grounding map
             )
             log.info("[2/7] Markdown cached in MongoDB — hash=%s", extracted["document_hash"])
         finally:
@@ -279,10 +282,21 @@ async def get_chunk_image(doc_hash: str, chunk_id: str):
     if not extraction:
         raise HTTPException(status_code=404, detail="Extraction not found")
     
-    # 2. Find the chunk metadata
-    chunk = next((c for c in extraction["chunks"] if c["id"] == chunk_id), None)
-    if not chunk or "grounding" not in chunk:
-        raise HTTPException(status_code=404, detail="Grounding metadata not found for this chunk")
+    # 2. Search in high-precision grounding map first (includes table cells, headers, etc.)
+    grounding_info = extraction.get("grounding", {}).get(chunk_id)
+    
+    if grounding_info and "box" in grounding_info:
+        box = grounding_info["box"]
+        page_index = grounding_info.get("page", 0)
+    else:
+        # 2. Fallback to top-level chunks list
+        chunk = next((c for c in extraction.get("chunks", []) if c["id"] == chunk_id), None)
+        if not chunk or "grounding" not in chunk:
+            log.warning("Chunk ID %s not found in grounding map or chunks list for %s", chunk_id, doc_hash)
+            raise HTTPException(status_code=404, detail="Chunk grounding data missing")
+        
+        box = chunk["grounding"]["box"]
+        page_index = chunk["grounding"].get("page", 0)
     
     # 3. Get source PDF from MongoDB
     pdf_bytes = await db.get_pdf(doc_hash)

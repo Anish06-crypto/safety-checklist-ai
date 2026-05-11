@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, UTC
 from motor.motor_asyncio import AsyncIOMotorClient
 from models.checklist import GeneratedChecklist
 
@@ -68,7 +69,7 @@ async def get_pdf(document_hash: str) -> bytes | None:
     return doc["contents"] if doc else None
 
 
-async def save_extraction(document_hash: str, markdown: str, chunks: list[dict]) -> None:
+async def save_extraction(document_hash: str, markdown: str, chunks: list[dict], grounding: dict = None) -> None:
     db = await _get_db()
     await db.raw_extractions.update_one(
         {"document_hash": document_hash},
@@ -77,6 +78,8 @@ async def save_extraction(document_hash: str, markdown: str, chunks: list[dict])
                 "document_hash": document_hash,
                 "markdown": markdown,
                 "chunks": chunks,
+                "grounding": grounding,
+                "timestamp": datetime.now(UTC).isoformat()
             }
         },
         upsert=True,

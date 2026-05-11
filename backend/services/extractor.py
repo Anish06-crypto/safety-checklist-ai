@@ -53,8 +53,9 @@ def extract_from_pdf(file_path: str, filename: str = "document.pdf") -> dict:
 
 
     return {
-        "sample_text": sample_text,
-        "prose_text": markdown,
+        "markdown": response.markdown,
+        "prose_text": response.markdown,
         "chunks": [c.model_dump() for c in response.chunks],
+        "grounding": response.grounding,
         "document_hash": doc_hash,
     }
