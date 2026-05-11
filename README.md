@@ -9,7 +9,7 @@ An AI-driven safety inspection system for the offshore energy industry. This pro
 Safety Checklist AI addresses the manual overhead and compliance risks in offshore safety inspections. By leveraging LLMs and specialized document parsing, it transforms complex regulatory documents into actionable, multilingual digital checklists.
 
 ### Key Features
-- **LandingAI ADE Integration:** Uses Agentic Document Extraction (ADE) to transform complex PDFs into structured Markdown, preserving tables, charts, and hierarchical data.
+- **LandingAI ADE Integration (Document Intelligence):** Uses Agentic Document Extraction (ADE) to transform complex PDFs into structured Markdown, preserving tables, charts, and hierarchical data.
 - **AI-Powered Generation:** Leverages Groq (Llama 3.3 70B) to generate safety-critical checklist items with precise severity classification.
 - **Visual Grounding:** Links inspection items to specific coordinates in the source document for evidence verification.
 - **Real-Time Translation:** On-the-fly translation into 10+ languages (Norwegian, French, Arabic, etc.) via DeepL.
