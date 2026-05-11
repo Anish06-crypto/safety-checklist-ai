@@ -41,15 +41,21 @@ def translate_checklist_items(
     client = _get_client()
     n_fields = len(_FIELDS_TO_TRANSLATE)
 
+    # Normalise: accept both Pydantic model instances and plain dicts
+    raw_items = [
+        item.model_dump() if hasattr(item, "model_dump") else item
+        for item in items
+    ]
+
     # Batch ALL fields from ALL items into a single DeepL request
     # instead of N requests (one per item). Reduces ~5s → ~1s for 8 items.
     all_texts = [
-        item.get(f, "") for item in items for f in _FIELDS_TO_TRANSLATE
+        item.get(f, "") for item in raw_items for f in _FIELDS_TO_TRANSLATE
     ]
     all_results = client.translate_text(all_texts, target_lang=target_language)
 
     translated_items = []
-    for i, item in enumerate(items):
+    for i, item in enumerate(raw_items):
         offset = i * n_fields
         translated_items.append({
             **item,
