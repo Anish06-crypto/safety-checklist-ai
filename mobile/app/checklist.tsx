@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChecklistCard } from '../components/ChecklistCard';
 import { GroundingOverlay } from '../components/GroundingOverlay';
 import { useChecklistStore } from '../store/useChecklistStore';
-import type { Chunk } from '../lib/api';
+import { getChunkGrounding, type Chunk } from '../lib/api';
 
 const SEVERITY_ORDER = { CRITICAL: 0, MAJOR: 1, MINOR: 2 } as const;
 
@@ -22,22 +22,28 @@ export default function ChecklistScreen() {
   const chunks = useChecklistStore((s) => s.chunks);
 
   const [selectedChunk, setSelectedChunk] = useState<Chunk | null>(null);
+  const docHash = checklist?.source_document_hash;
 
-  const handleViewEvidence = (chunkId?: string) => {
-    console.log('handleViewEvidence called with ID:', chunkId);
-    if (!chunkId) {
-      console.warn('No chunkId provided to handleViewEvidence');
+  const handleViewEvidence = async (chunkId?: string) => {
+    if (!chunkId || !docHash) return;
+
+    // Step 1: check the local chunks array (UUID-level chunks)
+    const localChunk = chunks.find((c) => c.id === chunkId);
+    if (localChunk) {
+      setSelectedChunk(localChunk);
       return;
     }
-    
-    console.log('Searching in chunks array of size:', chunks.length);
-    const chunk = chunks.find((c) => c.id === chunkId);
-    
-    if (chunk) {
-      console.log('Chunk found! Page:', chunk.grounding.page);
-      setSelectedChunk(chunk);
-    } else {
-      console.warn('Chunk not found for ID:', chunkId);
+
+    // Step 2: cell-level ID (e.g. "1-9") — fetch grounding from backend
+    try {
+      const remote = await getChunkGrounding(docHash, chunkId);
+      if (remote) {
+        setSelectedChunk(remote);
+      } else {
+        console.warn('No grounding found for ID:', chunkId);
+      }
+    } catch (err) {
+      console.error('Failed to fetch grounding for', chunkId, err);
     }
   };
 

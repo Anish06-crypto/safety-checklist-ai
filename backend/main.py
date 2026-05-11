@@ -276,6 +276,37 @@ async def get_chunks(document_hash: str):
     if not data:
         raise HTTPException(status_code=404, detail="Grounding data not found for this document.")
     return data["chunks"]
+
+
+@app.get(
+    "/api/extractions/{doc_hash}/grounding/{chunk_id}",
+    summary="Get grounding coordinates for a single chunk or cell ID",
+    tags=["Grounding"],
+)
+async def get_single_grounding(doc_hash: str, chunk_id: str):
+    """
+    Returns a Chunk-shaped object {id, type, grounding: {page, box}} for any
+    chunk UUID or table cell ID (e.g. '1-9').  Used by the mobile client when
+    the ID is a cell-level ID not present in the top-level chunks list.
+    """
+    extraction = await db.get_extraction(doc_hash)
+    if not extraction:
+        raise HTTPException(status_code=404, detail="Extraction not found")
+
+    # Check high-precision grounding map first (covers cell-level IDs)
+    grounding_map = extraction.get("grounding", {})
+    if chunk_id in grounding_map:
+        info = grounding_map[chunk_id]
+        return {"id": chunk_id, "type": info.get("type", "cell"), "grounding": {"page": info["page"], "box": info["box"]}}
+
+    # Fallback: search the chunks list for UUID-level chunks
+    for chunk in extraction.get("chunks", []):
+        if chunk["id"] == chunk_id:
+            return {"id": chunk_id, "type": chunk.get("type", "text"), "grounding": chunk["grounding"]}
+
+    raise HTTPException(status_code=404, detail=f"Chunk '{chunk_id}' not found in grounding data")
+
+
 @app.get("/api/extractions/{doc_hash}/chunks/{chunk_id}/image", tags=["Grounding"])
 async def get_chunk_image(doc_hash: str, chunk_id: str):
     """Serve a cropped image of the chunk from the source PDF using PyMuPDF"""

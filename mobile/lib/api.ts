@@ -82,3 +82,19 @@ export async function getChunks(docHash: string): Promise<Chunk[]> {
 
   return res.json();
 }
+
+/**
+ * Fetch grounding coordinates for a single chunk or cell ID.
+ * Used when the ID is a cell-level ID (e.g. "1-9") not present in the
+ * top-level chunks array.
+ */
+export async function getChunkGrounding(
+  docHash: string,
+  chunkId: string
+): Promise<Chunk | null> {
+  const res = await fetch(
+    `${API_BASE}/api/extractions/${docHash}/grounding/${chunkId}`
+  );
+  if (!res.ok) return null;
+  return res.json();
+}
