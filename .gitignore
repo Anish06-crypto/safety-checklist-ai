@@ -1,8 +1,8 @@
 PLAN.md
-/nexus-prototype/.gitignore
 /skills/*
 .env
 .agents/skills/*
 .claude/skills/*
 .scratch/*
 skills-lock.json
+.pytest_cache/*
