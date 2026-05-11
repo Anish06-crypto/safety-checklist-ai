@@ -53,6 +53,7 @@ def extract_from_pdf(file_path: str, filename: str = "document.pdf") -> dict:
 
 
     return {
+        "sample_text": sample_text,
         "markdown": response.markdown,
         "prose_text": response.markdown,
         "chunks": [c.model_dump() for c in response.chunks],
