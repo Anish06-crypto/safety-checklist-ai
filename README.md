@@ -33,6 +33,18 @@ graph TD
     end
 ```
 
+## 📸 App Preview
+
+| 1. Upload & Ingestion | 2. AI-Generated Checklist |
+| :---: | :---: |
+| ![Upload Screen](./assets/screenshots/upload_screen.png) | ![Checklist View](./assets/screenshots/checklist_view.png) |
+| *Upload any DROPS procedure PDF* | *Items extracted with severity levels* |
+
+| 3. Visual Grounding | 4. Real-Time Translation |
+| :---: | :---: |
+| ![Visual Evidence](./assets/screenshots/visual_evidence.png) | ![Translation View](./assets/screenshots/translation_view.png) |
+| *Direct PDF crops for evidence verification* | *Seamless translation via DeepL* |
+
 ## 🛠 Tech Stack
 
 ### Backend
