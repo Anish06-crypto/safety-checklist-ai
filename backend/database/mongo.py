@@ -52,7 +52,11 @@ async def get_extraction(document_hash: str) -> dict | None:
     db = await _get_db()
     doc = await db.raw_extractions.find_one({"document_hash": document_hash})
     if doc:
-        return {"markdown": doc["markdown"], "chunks": doc.get("chunks", [])}
+        return {
+            "markdown": doc["markdown"],
+            "chunks": doc.get("chunks", []),
+            "grounding": doc.get("grounding", {})
+        }
     return None
 
 async def save_pdf(document_hash: str, contents: bytes):
@@ -69,7 +73,7 @@ async def get_pdf(document_hash: str) -> bytes | None:
     return doc["contents"] if doc else None
 
 
-async def save_extraction(document_hash: str, markdown: str, chunks: list[dict], grounding: dict = None) -> None:
+async def save_extraction(document_hash: str, markdown: str, chunks: list[dict], grounding: dict = None, raw_json: dict = None) -> None:
     db = await _get_db()
     await db.raw_extractions.update_one(
         {"document_hash": document_hash},
@@ -79,6 +83,7 @@ async def save_extraction(document_hash: str, markdown: str, chunks: list[dict],
                 "markdown": markdown,
                 "chunks": chunks,
                 "grounding": grounding,
+                "raw_json": raw_json,
                 "timestamp": datetime.now(UTC).isoformat()
             }
         },

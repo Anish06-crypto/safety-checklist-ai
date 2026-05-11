@@ -177,7 +177,8 @@ async def generate(
                 extracted["document_hash"],
                 extracted["prose_text"],
                 extracted.get("chunks", []),
-                extracted.get("grounding", {})  # Save full grounding map
+                extracted.get("grounding", {}),  # Save full grounding map
+                extracted.get("raw_json", {})    # Save the entire raw JSON response
             )
             log.info("[2/7] Markdown cached in MongoDB — hash=%s", extracted["document_hash"])
         finally:
