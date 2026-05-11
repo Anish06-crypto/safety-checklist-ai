@@ -75,10 +75,21 @@ exact fields:
   Do NOT default everything to Pre-use — vary based on document content.
   For event-triggered inspections (post-jarring, post-incident, post-modification),
   use "As required". Never invent a frequency not supported by the document.
-- chunk_id: the exact ID string from the <a id='...'></a> markers found in the markdown.
-  You MUST pick the anchor tag that IMMEDIATELY PRECEDES the requirement text or the 
-  table row you are extracting. Never reuse an ID from a different section. 
-  This ID is the ONLY way the user can see the visual evidence—it MUST be accurate.
+- chunk_id: the most precise ID that locates your extracted text in the document.
+  There are TWO types of IDs in the markdown — you MUST choose the most specific one:
+  
+  TYPE 1 — Table cell IDs (HIGHEST PRECISION — prefer these for table content):
+  These appear as attributes on <td> tags inside tables: <td id="1-9">Link Block Bolt Assemblies Secured</td>
+  The id format is like "1-9", "0-7", "1-c", "3-g" etc. (page-column notation).
+  If the item you are extracting appears in a table row, use the <td id="..."> of the 
+  FIRST cell in that row (the one containing the item name/description).
+  
+  TYPE 2 — Chunk anchor IDs (FALLBACK — use only for non-table content):
+  These appear as <a id='uuid-here'></a> tags before paragraphs, headings, or figures.
+  Use these ONLY when the content is NOT inside a table.
+  
+  RULE: For table items, ALWAYS use the cell ID (e.g. "1-9"), never the chunk UUID.
+  This ID is the ONLY way the user can see the precise visual evidence—it MUST be accurate.
 
 Return ONLY a valid JSON array. No preamble. No explanation.
 No markdown code fences. Start with [ and end with ]."""
