@@ -52,12 +52,15 @@ def extract_from_pdf(file_path: str, filename: str = "document.pdf") -> dict:
     sample_text = markdown[:500]
 
 
+    # Convert complex grounding objects to plain dictionaries for MongoDB/BSON compatibility
+    grounding_dict = {k: v.model_dump() for k, v in response.grounding.items()}
+
     return {
         "sample_text": sample_text,
         "markdown": response.markdown,
         "prose_text": response.markdown,
         "chunks": [c.model_dump() for c in response.chunks],
-        "grounding": response.grounding,
+        "grounding": grounding_dict,
         "raw_json": response.model_dump(),
         "document_hash": doc_hash,
     }
