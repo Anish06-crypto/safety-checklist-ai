@@ -309,13 +309,12 @@ async def get_chunk_image(doc_hash: str, chunk_id: str):
     # 4. Perform crop
     try:
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-        page_idx = chunk["grounding"]["page"] - 1
-        page = doc[page_idx]
-        box = chunk["grounding"]["box"]
+        # page_index is already 0-based from both the grounding map and chunks list
+        page = doc[page_index]
         
         w, h = page.rect.width, page.rect.height
-        log.info("Cropping chunk %s: page=%d size=%dx%d box=%s", 
-                 chunk_id, page_idx + 1, w, h, box)
+        log.info("Cropping chunk %s: page=%d size=%dx%d box=%s",
+                 chunk_id, page_index, w, h, box)
         
         if isinstance(box, dict):
             rect = fitz.Rect(box["left"] * w, box["top"] * h, box["right"] * w, box["bottom"] * h)
