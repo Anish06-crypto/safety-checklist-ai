@@ -10,7 +10,7 @@ from groq import Groq
 from models.checklist import ChecklistItem, DROPSSeverity, GeneratedChecklist
 
 MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
-FALLBACK_MODEL = os.environ.get("GROQ_MODEL_FALLBACK", "llama-3.1-70b-versatile")
+FALLBACK_MODEL = os.environ.get("GROQ_MODEL_FALLBACK", "llama-3.1-8b-instant")
 
 # ---------------------------------------------------------------------------
 # API Key Rotation — reads GROQ_API_KEY, GROQ_API_KEY_2, GROQ_API_KEY_3

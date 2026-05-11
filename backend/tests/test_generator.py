@@ -30,8 +30,7 @@ def _make_mock_client(response_content: str):
 
 
 def test_returns_generated_checklist_instance(monkeypatch):
-    mock_client = _make_mock_client(json.dumps([VALID_ITEM]))
-    monkeypatch.setattr("services.generator._groq_client", mock_client)
+    monkeypatch.setattr("services.generator._call_groq", lambda m, p: json.dumps([VALID_ITEM]))
 
     from services.generator import generate_from_prose
     result = generate_from_prose("prose text", "test.pdf", "abc123", [])
@@ -40,8 +39,7 @@ def test_returns_generated_checklist_instance(monkeypatch):
 
 
 def test_item_count_equals_items_length(monkeypatch):
-    mock_client = _make_mock_client(json.dumps([VALID_ITEM]))
-    monkeypatch.setattr("services.generator._groq_client", mock_client)
+    monkeypatch.setattr("services.generator._call_groq", lambda m, p: json.dumps([VALID_ITEM]))
 
     from services.generator import generate_from_prose
     result = generate_from_prose("prose text", "test.pdf", "abc123", CHUNKS_DATA)
@@ -50,8 +48,7 @@ def test_item_count_equals_items_length(monkeypatch):
 
 
 def test_status_is_current(monkeypatch):
-    mock_client = _make_mock_client(json.dumps([VALID_ITEM]))
-    monkeypatch.setattr("services.generator._groq_client", mock_client)
+    monkeypatch.setattr("services.generator._call_groq", lambda m, p: json.dumps([VALID_ITEM]))
 
     from services.generator import generate_from_prose
     result = generate_from_prose("prose text", "test.pdf", "abc123", [])
@@ -60,8 +57,7 @@ def test_status_is_current(monkeypatch):
 
 
 def test_source_document_hash_matches_input(monkeypatch):
-    mock_client = _make_mock_client(json.dumps([VALID_ITEM]))
-    monkeypatch.setattr("services.generator._groq_client", mock_client)
+    monkeypatch.setattr("services.generator._call_groq", lambda m, p: json.dumps([VALID_ITEM]))
 
     from services.generator import generate_from_prose
     result = generate_from_prose("prose text", "test.pdf", "deadbeef", [])
@@ -71,8 +67,7 @@ def test_source_document_hash_matches_input(monkeypatch):
 
 def test_malformed_items_are_skipped(monkeypatch):
     malformed = {"action": "", "severity": "NOT_VALID"}
-    mock_client = _make_mock_client(json.dumps([malformed, VALID_ITEM]))
-    monkeypatch.setattr("services.generator._groq_client", mock_client)
+    monkeypatch.setattr("services.generator._call_groq", lambda m, p: json.dumps([malformed, VALID_ITEM]))
 
     from services.generator import generate_from_prose
     result = generate_from_prose("prose text", "test.pdf", "abc123", [])
@@ -83,8 +78,7 @@ def test_malformed_items_are_skipped(monkeypatch):
 
 def test_markdown_fences_are_handled(monkeypatch):
     fenced = f"```json\n{json.dumps([VALID_ITEM])}\n```"
-    mock_client = _make_mock_client(fenced)
-    monkeypatch.setattr("services.generator._groq_client", mock_client)
+    monkeypatch.setattr("services.generator._call_groq", lambda m, p: fenced)
 
     from services.generator import generate_from_prose
     result = generate_from_prose("prose text", "test.pdf", "abc123", [])
@@ -93,18 +87,15 @@ def test_markdown_fences_are_handled(monkeypatch):
 
 
 def test_fallback_model_used_on_exception(monkeypatch):
-    success_response = _make_mock_client(json.dumps([VALID_ITEM])).chat.completions.create.return_value
-    mock_client = MagicMock()
     call_count = {"n": 0}
 
-    def failing_then_succeeding(*args, **kwargs):
+    def failing_then_succeeding(model, prose):
         call_count["n"] += 1
         if call_count["n"] == 1:
             raise Exception("primary model unavailable")
-        return success_response
+        return json.dumps([VALID_ITEM])
 
-    mock_client.chat.completions.create.side_effect = failing_then_succeeding
-    monkeypatch.setattr("services.generator._groq_client", mock_client)
+    monkeypatch.setattr("services.generator._call_groq", failing_then_succeeding)
 
     from services.generator import generate_from_prose
     result = generate_from_prose("prose text", "test.pdf", "abc123", [])
