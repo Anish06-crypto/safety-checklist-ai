@@ -2,7 +2,7 @@
 
 An end-to-end document intelligence and multilingual safety checklist generation system for the offshore energy industry.
 
-InteCheck AI investigates how AI-driven document extraction, grounding systems, and multilingual NLP workflows can transform complex technical safety procedures into verifiable digital inspection checklists for handheld field use.
+Safety Checklist AI investigates how AI-driven document extraction, grounding systems, and multilingual NLP workflows can transform complex technical safety procedures into verifiable digital inspection checklists for handheld field use.
 
 ---
 
